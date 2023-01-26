@@ -3,6 +3,28 @@ entries:
   expo-manager:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2023-01-26T23:46:57.051019702Z"
+    dependencies:
+    - condition: rethinkdb.enabled
+      name: rethinkdb
+      repository: https://fastlorenzo.github.io/rethinkdb-helm-chart
+      version: 1.2.2
+    - name: common
+      repository: https://charts.bitnami.com/bitnami
+      tags:
+      - bitnami-common
+      version: 2.1.2
+    description: A Helm chart to deploy Expo Manager
+    digest: 31f08b6abf62de6258e2c8ca0157fb92c697bd4896af0e36f6f3e64572f0c948
+    maintainers:
+    - name: fastlorenzo
+    name: expo-manager
+    type: application
+    urls:
+    - https://github.com/Befritco/helm-charts/releases/download/expo-manager-1.0.5/expo-manager-1.0.5.tgz
+    version: 1.0.5
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2023-01-26T23:25:42.333910888Z"
     dependencies:
     - condition: rethinkdb.enabled
@@ -237,4 +259,4 @@ entries:
     urls:
     - https://github.com/Befritco/helm-charts/releases/download/expo-manager-0.1.2/expo-manager-0.1.2.tgz
     version: 0.1.2
-generated: "2023-01-26T23:25:42.333989373Z"
+generated: "2023-01-26T23:46:57.051096002Z"
