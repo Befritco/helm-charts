@@ -58,6 +58,13 @@ spec:
       containers:
         - name: web
           image: {{ include "expo-manager.web.image" . | quote }}
+          env:
+            - name: NGINX_PORT
+              value: {{ .Values.web.service.port | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.web.service.port }}
+              protocol: TCP
           {{- if .Values.web.resources }}
           resources: {{- toYaml .Values.web.resources | nindent 12 }}
           {{- end }}
