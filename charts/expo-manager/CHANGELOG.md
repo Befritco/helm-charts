@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.4](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.3...expo-manager-1.0.4) (2023-01-26)
+
+
+### Bug Fixes
+
+* fixed multiple typos ([93419a8](https://github.com/Befritco/helm-charts/commit/93419a8039a69338d61643e629e2af7cd78ea271))
+* fixed multiple typos ([5470e43](https://github.com/Befritco/helm-charts/commit/5470e43865d1899fc9bee75d0f01ed2112d278f8))
+* fixed rethinkdb hostname ([4bd9264](https://github.com/Befritco/helm-charts/commit/4bd9264334c71bde2aa44da41b6674052e5ee756))
+
 ## [1.0.3](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.2...expo-manager-1.0.3) (2023-01-26)
 
 
