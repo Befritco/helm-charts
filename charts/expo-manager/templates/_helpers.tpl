@@ -45,7 +45,7 @@ Create the name of the service account to use
 Return the proper image pull secret names
 */}}
 {{- define "expo-manager.imagePullSecrets" -}}
-{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.api.image .Values.web.image) "context" $) -}}
+{{- include "common.images.pullSecrets" (dict "images" (list .Values.api.image .Values.web.image) "global" .Values.global) -}}
 {{- end -}}
 
 {{/*
