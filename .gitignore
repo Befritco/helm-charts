@@ -1,0 +1,4 @@
+charts/*/charts
+rethinkdb_data/
+gh-pages/
+.cr-release-packages

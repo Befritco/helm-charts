@@ -1,0 +1,550 @@
+# Default values for expo-manager.
+
+## @section Global parameters
+## Global common parameters (see Bitnamis common chart)
+## @param global.imageRegistry Global container image registry
+## @param global.imagePullSecrets Global container image pull secret
+## @param global.storageClass Global storageClass to use for persistent volumes
+global:
+  imageRegistry: ""
+  ## E.g.
+  ## imagePullSecrets:
+  ##   - myRegistryKeySecretName
+  ##
+  imagePullSecrets: []
+  storageClass: ""
+
+## @section Common parameters
+
+## @param nameOverride String to partially override mailu.fullname include (will maintain the release name)
+nameOverride: ""
+## @param fullnameOverride String to fully override mailu.fullname template
+fullnameOverride: ""
+## @param commonLabels Add labels to all the deployed resources
+commonLabels: {}
+## @param commonAnnotations Add annotations to all the deployed resources
+commonAnnotations: {}
+
+## Ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+## @param tolerations Tolerations for pod assignment
+tolerations: []
+
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+## @param affinity Affinity for pod assignment
+affinity: {}
+
+## @param serviceAccount.create Specifies whether a service account should be created
+## @param serviceAccount.annotations Annotations to add to the service account
+## @param serviceAccount.name The name of the service account to use - if not set and create is true, a name is generated using the fullname template
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+## @section Expo-manager parameters
+
+## @param environment Environment to run expo-manager in
+environment: production
+
+## @param rethinkdbName Name of the rethinkdb database
+rethinkdbName: expo
+
+## @param apm.enabled Enable APM
+## @param apm.server APM server fqdn
+apm:
+  enabled: false
+  server: "localhost"
+
+## @param jwtSecret JWT secret - ignored if existingSecret is set
+jwtSecret: ""
+## @param initialUserPassword Initial password for the first user - ignored if existingSecret is set
+initialUserPassword: ""
+
+## @param existingSecret Name of an existing secret to use for the jwtSecret (jwt-secret key), initialUserPassword (initial-user-password key) and email.senderPassword (email-sender-password key)
+existingSecret: ""
+
+## @param email.server Email server to send emails from
+## @param email.senderAddress Email address to send emails from
+## @param email.senderName Name to send emails from
+## @param email.senderPassword Password to send emails from - ignored if existingSecret is set
+## @param email.bcc Email address to send bcc emails to
+## @param email.subject Email subject
+email:
+  server: "example.com"
+  senderAddress: "expo@example.com"
+  senderName: "Expo 2023"
+  senderPassword: ""
+  bcc: "expo@example.com"
+  subject: "Checkout stand"
+
+## @param checkout.text.fr Text to show in checkout email and documents in french
+## @param checkout.text.nl Text to show in checkout email and documents in dutch
+## @param checkout.text.en Text to show in checkout email and documents in english
+## @param checkout.entity Entity name shown in email text and documents
+checkout:
+  text:
+    fr: "Texte en français"
+    nl: "Tekst in het Nederlands"
+    en: "Text in English"
+  entity: "Befritco SCOM"
+
+## @param exposition.id Id of the exposition
+## @param exposition.name Name of the exposition
+## @param exposition.description Description of the exposition
+## @param exposition.logo Logo of the exposition (url)
+exposition:
+  id: "exposition2023"
+  name: "Exposition 2023"
+  description: "Expo 2023"
+  logo: "https://example.com/logo.png"
+
+## @param debug Debug mode (use a string to enable - e.g. "*" for all)
+debug: ""
+
+## @section Web parameters
+web:
+  ## @param web.replicaCount Number of web replicas to deploy
+  replicaCount: 1
+
+  ## Pod image
+  ## @param web.image.registry Pod image registry
+  ## @param web.image.repository Pod image repository
+  ## @param web.image.tag Pod image tag (defaults to appVersion)
+  ## @param web.image.pullPolicy Pod image pull policy
+  ## @param web.image.digest Pod image digest (overrides tag)
+  ## @param web.image.pullSecrets Pod image pull secrets
+  image:
+    registry: ghcr.io
+    repository: befritco/expo-web
+    tag: ""
+    pullPolicy: IfNotPresent
+    digest: ""
+    ## Optionally specify an array of imagePullSecrets.
+    ## Secrets must be manually created in the namespace.
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+    ## e.g:
+    ## pullSecrets:
+    ##   - myRegistryKeySecretName
+    ##
+    pullSecrets: []
+
+  ## @param web.service.type web service type
+  ## @param web.service.port web service port
+  ## @param web.service.annotations web service annotations
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+
+  ## Pod resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## We usually recommend not to specify default resources and to leave this as a conscious
+  ## choice for the user. This also increases chances charts run on environments with little
+  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  ## @param web.resources.limits The resources limits for the container
+  ## @param web.resources.requests The requested resources for the container
+  ##
+  resources:
+    ## Example:
+    ## limits:
+    ##    cpu: 200m
+    ##    memory: 200Mi
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 25m
+    ##    memory: 100Mi
+    requests: {}
+
+  ## Liveness probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param web.livenessProbe.enabled Enable livenessProbe
+  ## @param web.livenessProbe.failureThreshold Failure threshold for livenessProbe
+  ## @param web.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+  ## @param web.livenessProbe.periodSeconds Period seconds for livenessProbe
+  ## @param web.livenessProbe.successThreshold Success threshold for livenessProbe
+  ## @param web.livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+  livenessProbe:
+    enabled: true
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## Readiness probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param web.readinessProbe.enabled Enable readinessProbe
+  ## @param web.readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+  ## @param web.readinessProbe.periodSeconds Period seconds for readinessProbe
+  ## @param web.readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+  ## @param web.readinessProbe.failureThreshold Failure threshold for readinessProbe
+  ## @param web.readinessProbe.successThreshold Success threshold for readinessProbe
+  readinessProbe:
+    enabled: true
+    failureThreshold: 1
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## Startup probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param web.startupProbe.enabled Enable startupProbe
+  ## @param web.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param web.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param web.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param web.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param web.startupProbe.successThreshold Success threshold for startupProbe
+  startupProbe:
+    enabled: false
+    failureThreshold: 30
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## @param web.podLabels Add extra labels to pod
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  ## @param web.podAnnotations Add extra annotations to the pod
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+
+  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ## @param web.nodeSelector Node labels selector for pod assignment
+  nodeSelector: {}
+
+  ## @param web.initContainers Add additional init containers to the pod
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  ## e.g:
+  ## initContainers:
+  ##  - name: your-image-name
+  ##    image: your-image
+  ##    imagePullPolicy: Always
+  ##    command: ['sh', '-c', 'echo "hello world"']
+  initContainers: []
+
+  ## @param web.priorityClassName Pods' priorityClassName
+  priorityClassName: ""
+
+  ## @param web.terminationGracePeriodSeconds In seconds, time given to the pod to terminate gracefully
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+  terminationGracePeriodSeconds: 2
+
+  ## @param web.affinity Affinity for front pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param web.tolerations Tolerations for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+
+  ## @param web.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  topologySpreadConstraints: []
+
+  ## Strategy to use to update Pods
+  ## @param web.updateStrategy.type Strategy to use to update Pods
+  ## `Recreate` or `RollingUpdate` if `web.kind=Deployment`
+  ## `OnDelete` or `RollingUpdate` if `web.kind=DaemonSet`
+  updateStrategy:
+    type: RollingUpdate
+
+## @section API parameters
+api:
+  ## @param api.replicaCount Number of API replicas to deploy
+  replicaCount: 1
+
+  ## Pod image
+  ## @param api.image.repository Pod image repository
+  ## @param api.image.tag Pod image tag (defaults to appVersion)
+  ## @param api.image.pullPolicy Pod image pull policy
+  ## @param api.image.pullSecrets Pod image pull secrets
+  image:
+    repository: ghcr.io/befritco/expo-api
+    tag: ""
+    pullPolicy: IfNotPresent
+    ## Optionally specify an array of imagePullSecrets.
+    ## Secrets must be manually created in the namespace.
+    ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+    ## e.g:
+    ## pullSecrets:
+    ##   - myRegistryKeySecretName
+    ##
+    pullSecrets: []
+
+  ## @param api.service.type api service type
+  ## @param api.service.port api service port
+  ## @param api.service.annotations api service annotations
+  service:
+    type: ClusterIP
+    port: 9000
+    annotations: {}
+
+  ## Pod resource requests and limits
+  ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
+  ## We usually recommend not to specify default resources and to leave this as a conscious
+  ## choice for the user. This also increases chances charts run on environments with little
+  ## resources, such as Minikube. If you do want to specify resources, uncomment the following
+  ## lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  ## @param api.resources.limits The resources limits for the container
+  ## @param api.resources.requests The requested resources for the container
+  ##
+  resources:
+    ## Example:
+    ## limits:
+    ##    cpu: 200m
+    ##    memory: 200Mi
+    limits: {}
+    ## Examples:
+    ## requests:
+    ##    cpu: 25m
+    ##    memory: 100Mi
+    requests: {}
+
+  ## Liveness probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param api.livenessProbe.enabled Enable livenessProbe
+  ## @param api.livenessProbe.failureThreshold Failure threshold for livenessProbe
+  ## @param api.livenessProbe.initialDelaySeconds Initial delay seconds for livenessProbe
+  ## @param api.livenessProbe.periodSeconds Period seconds for livenessProbe
+  ## @param api.livenessProbe.successThreshold Success threshold for livenessProbe
+  ## @param api.livenessProbe.timeoutSeconds Timeout seconds for livenessProbe
+  livenessProbe:
+    enabled: true
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## Readiness probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param api.readinessProbe.enabled Enable readinessProbe
+  ## @param api.readinessProbe.initialDelaySeconds Initial delay seconds for readinessProbe
+  ## @param api.readinessProbe.periodSeconds Period seconds for readinessProbe
+  ## @param api.readinessProbe.timeoutSeconds Timeout seconds for readinessProbe
+  ## @param api.readinessProbe.failureThreshold Failure threshold for readinessProbe
+  ## @param api.readinessProbe.successThreshold Success threshold for readinessProbe
+  readinessProbe:
+    enabled: true
+    failureThreshold: 1
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## Startup probe values
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+  ## @param api.startupProbe.enabled Enable startupProbe
+  ## @param api.startupProbe.initialDelaySeconds Initial delay seconds for startupProbe
+  ## @param api.startupProbe.periodSeconds Period seconds for startupProbe
+  ## @param api.startupProbe.timeoutSeconds Timeout seconds for startupProbe
+  ## @param api.startupProbe.failureThreshold Failure threshold for startupProbe
+  ## @param api.startupProbe.successThreshold Success threshold for startupProbe
+  startupProbe:
+    enabled: false
+    failureThreshold: 30
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    successThreshold: 1
+    timeoutSeconds: 5
+
+  ## @param api.podLabels Add extra labels to pod
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  ## @param api.podAnnotations Add extra annotations to the pod
+  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+
+  ## ref: https://kubernetes.io/docs/user-guide/node-selection/
+  ## @param api.nodeSelector Node labels selector for pod assignment
+  nodeSelector: {}
+
+  ## @param api.initContainers Add additional init containers to the pod
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  ## e.g:
+  ## initContainers:
+  ##  - name: your-image-name
+  ##    image: your-image
+  ##    imagePullPolicy: Always
+  ##    command: ['sh', '-c', 'echo "hello world"']
+  initContainers: []
+
+  ## @param api.priorityClassName Pods' priorityClassName
+  priorityClassName: ""
+
+  ## @param api.terminationGracePeriodSeconds In seconds, time given to the pod to terminate gracefully
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod/#termination-of-pods
+  terminationGracePeriodSeconds: 2
+
+  ## @param api.affinity Affinity for front pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+  affinity: {}
+
+  ## @param api.tolerations Tolerations for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations: []
+
+  ## @param api.topologySpreadConstraints Topology Spread Constraints for pod assignment
+  ## ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-topology-spread-constraints/
+  topologySpreadConstraints: []
+
+  ## Strategy to use to update Pods
+  ## @param api.updateStrategy.type Strategy to use to update Pods
+  ## `Recreate` or `RollingUpdate` if `api.kind=Deployment`
+  ## `OnDelete` or `RollingUpdate` if `api.kind=DaemonSet`
+  updateStrategy:
+    type: RollingUpdate
+
+  ## @param api.extraEnvVars Extra environment variable to pass to the running container
+  ## For example:
+  ## extraEnvVars:
+  ##  - name: MY_ENV_VAR
+  ##    value: env_var_value
+  extraEnvVars: []
+
+  ## @param api.extraEnvVarsCM Name of existing ConfigMap containing extra environment variables to mount in the pod
+  extraEnvVarsCM: ""
+
+  ## @param api.extraEnvVarsSecret Name of existing Secret containing extra environment variables to mount in the pod
+  extraEnvVarsSecret: ""
+
+  ## @param api.extraVolumeMounts Optionally specify extra list of additional volumeMounts for the pod
+  extraVolumeMounts: []
+
+  ## @param api.extraVolumes Optionally specify extra list of additional volumes for the pod(s)
+  extraVolumes: []
+
+  persistence:
+    ## @param api.persistence.enabled Enable persistence using PVC
+    enabled: true
+
+    ## @param api.persistence.size Pod pvc size
+    size: 10Gi
+
+    ## @param api.persistence.storageClass Pod pvc storage class
+    storageClass: ""
+
+    ## @param api.persistence.accessModes Pod pvc access modes
+    accessModes: [ReadWriteOnce]
+
+    ## @param api.persistence.annotations Pod pvc annotations
+    annotations: {}
+
+    ## @param api.persistence.labels Pod pvc labels
+    labels: {}
+
+    ## @param api.persistence.selector Additional labels to match for the PVC
+    ## e.g:
+    ## selector:
+    ##   matchLabels:
+    ##     app: my-app
+    selector: {}
+
+    ## @param api.persistence.dataSource Custom PVC data source
+    dataSource: {}
+
+    ## @param api.persistence.existingClaim Use a existing PVC which must be created manually before bound
+    ## NOTE: requires api.persistence.enabled: true
+    existingClaim: ""
+
+## @section Ingress parameters
+ingress:
+  ## @param ingress.enabled Enable ingress controller resource
+  enabled: true
+
+  ## @param ingress.ingressClassName IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)
+  ## This is supported in Kubernetes 1.18+ and required if you have more than one IngressClass marked as the default for your cluster .
+  ## ref: https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/
+  ingressClassName: ""
+
+  ## @param ingress.pathType Ingress path type
+  pathType: ImplementationSpecific
+
+  ## @param ingress.apiVersion Force Ingress API version (automatically detected if not set)
+  apiVersion: ""
+
+  ## @param ingress.annotations [object] Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations.
+  ## Use this parameter to set the required annotations for cert-manager, see
+  ## ref: https://cert-manager.io/docs/usage/ingress/#supported-annotations
+  ## e.g:
+  ## annotations:
+  ##   kubernetes.io/ingress.class: nginx
+  ##   cert-manager.io/cluster-issuer: cluster-issuer-name
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "120s"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "36000s"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "36000s"
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+
+  ## @param ingress.hosts [array] Ingress hostnames
+  ## e.g:
+  ## hosts:
+  ##   - chart-example.local
+  hosts: []
+
+  ## @param ingress.tls [array] Ingress TLS configuration
+  ## e.g:
+  ## tls:
+  ##   - secretName: chart-example-tls
+  ##     hosts:
+  ##       - chart-example.local
+  tls: []
+
+## @section RethinkDB parameters
+## Values from https://github.com/fastlorenzo/rethinkdb-helm-chart/blob/main/charts/rethinkdb/values.yaml
+rethinkdb:
+  ## @param rethinkdb.enabled Enable RethinkDB
+  enabled: true
+
+  ## @param rethinkdb.cluster.rethinkCacheSize RethinkDB Cache Size in MB
+  ## @param rethinkdb.cluster.storage RethinkDB Storage Size
+  ## @param rethinkdb.cluster.replicas RethinkDB Replicas
+  ## @param rethinkdb.cluster.resources.limits.cpu RethinkDB CPU Limit
+  ## @param rethinkdb.cluster.resources.limits.memory RethinkDB Memory Limit
+  ## @param rethinkdb.cluster.resources.requests.cpu RethinkDB CPU Request
+  ## @param rethinkdb.cluster.resources.requests.memory RethinkDB Memory Request
+  cluster:
+    # RethinkDB Cache Size in MB
+    rethinkCacheSize: 512
+    storage: 40Gi
+    replicas: 3
+    resources:
+      limits:
+        cpu: 500m
+        memory: 2048Mi
+      requests:
+        cpu: 300m
+        memory: 2048Mi
+
+  ## @param rethinkdb.proxy.replicas RethinkDB Proxy Replicas
+  ## @param rethinkdb.proxy.resources.limits.cpu RethinkDB Proxy CPU Limit
+  ## @param rethinkdb.proxy.resources.limits.memory RethinkDB Proxy Memory Limit
+  ## @param rethinkdb.proxy.resources.requests.cpu RethinkDB Proxy CPU Request
+  ## @param rethinkdb.proxy.resources.requests.memory RethinkDB Proxy Memory Request
+  proxy:
+    replicas: 1
+    resources:
+      limits:
+        cpu: 100m
+        memory: 1024Mi
+      requests:
+        cpu: 100m
+        memory: 1024Mi
+
+  ## @param rethinkdb.rethinkdbPassword RethinkDB Admin Password - ignored if using `existingSecret`
+  rethinkdbPassword: rethinkdb
+
+  ## @param rethinkdb.existingSecret Use existing secret for rethinkDB password and certificates
+  ## Must at least contain the secret under `rethinkdb-password` key
+  ## If using TLS driver in proxy, set `driver-key.pem` and `driver-cert.pem`
+  existingSecret: ""
