@@ -114,8 +114,8 @@ spec:
               value: {{ .Values.exposition.logo | quote }}
             - name: RETHINKDB_NAME
               value: {{ .Values.rethinkdbName | quote }}
-            - name: RETHINKDB_HOST
-              value: {{ printf "%s-proxy" (include "rethinkdb.fullname" .) }}
+            - name: RETHINKDB_SERVER
+              value: {{ printf "%s-proxy" (include "common.names.dependency.fullname" (dict "chartName" "rethinkdb" "chartValues" .Values.rethinkdb "context" $)) }}
             - name: RETHINKDB_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -125,8 +125,6 @@ spec:
             {{- include "common.tplvalues.render" (dict "value" .Values.api.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
           envFrom:
-            - configMapRef:
-                name: {{ printf "%s-envvars" (include "expo-manager.fullname" .) }}
             {{- if .Values.api.extraEnvVarsCM }}
             - configMapRef:
                 name: {{ include "common.tplvalues.render" (dict "value" .Values.api.extraEnvVarsCM "context" $) }}
