@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.0...expo-manager-1.0.1) (2023-01-26)
+
+
+### Bug Fixes
+
+* fixed typo in notes ([4b9c1f0](https://github.com/Befritco/helm-charts/commit/4b9c1f04d11d2c6d7c879e8019c5502f70d49528))
+
 ## [1.0.0](https://github.com/Befritco/helm-charts/compare/expo-manager-v1.0.3...expo-manager-1.0.0) (2023-01-26)
 
 
