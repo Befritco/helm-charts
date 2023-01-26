@@ -125,8 +125,6 @@ spec:
             {{- include "common.tplvalues.render" (dict "value" .Values.api.extraEnvVars "context" $) | nindent 12 }}
             {{- end }}
           envFrom:
-            - configMapRef:
-                name: {{ printf "%s-envvars" (include "expo-manager.fullname" .) }}
             {{- if .Values.api.extraEnvVarsCM }}
             - configMapRef:
                 name: {{ include "common.tplvalues.render" (dict "value" .Values.api.extraEnvVarsCM "context" $) }}
