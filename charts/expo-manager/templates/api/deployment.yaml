@@ -61,7 +61,7 @@ spec:
           image: {{ include "expo-manager.api.image" . | quote }}
           env:
             - name: API_PORT
-              value: {{ .Values.api.service.port }}
+              value: {{ .Values.api.service.port | quote }}
             - name: NODE_ENV
               value: {{ .Values.environment | quote }}
             - name: APM_ENABLED
@@ -170,16 +170,16 @@ spec:
         {{- include "common.tplvalues.render" (dict "value" .Values.api.extraVolumes "context" $) | nindent 8 }}
         {{- end }}
   {{- if not .Values.api.persistence.enabled }}
-        - name: data
+        - name: reports
           emptyDir: {}
   {{- else if .Values.api.persistence.existingClaim }}
-        - name: data
+        - name: reports
           persistentVolumeClaim:
             claimName: {{ printf "%s" (tpl .Values.api.persistence.existingClaim .) }}
   {{- else }}
   volumeClaimTemplates:
     - metadata:
-        name: data
+        name: reports
         labels: {{- include "common.labels.standard" . | nindent 10 }}
           app.kubernetes.io/component: api
           {{- if .Values.api.persistence.labels }}
