@@ -1,9 +1,9 @@
 dependencies:
 - name: rethinkdb
   repository: https://fastlorenzo.github.io/rethinkdb-helm-chart
-  version: 1.2.2
+  version: 1.2.3
 - name: common
   repository: https://charts.bitnami.com/bitnami
   version: 2.1.2
-digest: sha256:eeff089c7b10b539feba7bbe4b6d8c16844fe524f48f8d429eec2d76f87f985a
-generated: "2023-01-23T21:09:57.560562227+01:00"
+digest: sha256:1912bda6bb9caef7d13288f7a366f9901dbf12a0139a615dd51350977a6fbdad
+generated: "2023-01-28T00:59:19.18013549+01:00"
