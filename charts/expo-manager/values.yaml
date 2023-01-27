@@ -63,16 +63,20 @@ initialUserPassword: ""
 ## @param existingSecret Name of an existing secret to use for the jwtSecret (jwt-secret key), initialUserPassword (initial-user-password key) and email.senderPassword (email-sender-password key)
 existingSecret: ""
 
-## @param email.server Email server to send emails from
+## @param email.server SMTP server hostname or IP
+## @param email.port SMTP server port
 ## @param email.senderAddress Email address to send emails from
 ## @param email.senderName Name to send emails from
-## @param email.senderPassword Password to send emails from - ignored if existingSecret is set
+## @param email.senderUsername SMTP server username used for authentication
+## @param email.senderPassword SMTP server password - ignored if existingSecret is set
 ## @param email.bcc Email address to send bcc emails to
 ## @param email.subject Email subject
 email:
   server: "example.com"
+  port: 587
   senderAddress: "expo@example.com"
   senderName: "Expo 2023"
+  senderUsername: "expo@example.com"
   senderPassword: ""
   bcc: "expo@example.com"
   subject: "Checkout stand"

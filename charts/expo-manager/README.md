@@ -28,30 +28,32 @@
 
 ### Expo-manager parameters
 
-| Name                     | Description                                                                                       | Value                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `environment`            | Environment to run expo-manager in                                                                | `production`                   |
-| `rethinkdbName`          | Name of the rethinkdb database                                                                    | `expo`                         |
-| `apm.enabled`            | Enable APM                                                                                        | `false`                        |
-| `apm.server`             | APM server fqdn                                                                                   | `localhost`                    |
-| `jwtSecret`              | JWT secret - ignored if existingSecret is set                                                     | `""`                           |
-| `initialUserPassword`    | Initial password for the first user - ignored if existingSecret is set                            | `""`                           |
-| `existingSecret`         | Name of an existing secret to use for the jwtSecret, initialUserPassword and email.senderPassword | `""`                           |
-| `email.server`           | Email server to send emails from                                                                  | `example.com`                  |
-| `email.senderAddress`    | Email address to send emails from                                                                 | `expo@example.com`             |
-| `email.senderName`       | Name to send emails from                                                                          | `Expo 2023`                    |
-| `email.senderPassword`   | Password to send emails from - ignored if existingSecret is set                                   | `""`                           |
-| `email.bcc`              | Email address to send bcc emails to                                                               | `expo@example.com`             |
-| `email.subject`          | Email subject                                                                                     | `Checkout stand`               |
-| `checkout.text.fr`       | Text to show in checkout email and documents in french                                            | `Texte en français`            |
-| `checkout.text.nl`       | Text to show in checkout email and documents in dutch                                             | `Tekst in het Nederlands`      |
-| `checkout.text.en`       | Text to show in checkout email and documents in english                                           | `Text in English`              |
-| `checkout.entity`        | Entity name shown in email text and documents                                                     | `Befritco SCOM`                |
-| `exposition.id`          | Id of the exposition                                                                              | `exposition2023`               |
-| `exposition.name`        | Name of the exposition                                                                            | `Exposition 2023`              |
-| `exposition.description` | Description of the exposition                                                                     | `Expo 2023`                    |
-| `exposition.logo`        | Logo of the exposition (url)                                                                      | `https://example.com/logo.png` |
-| `debug`                  | Debug mode (use a string to enable - e.g. "*" for all)                                            | `""`                           |
+| Name                     | Description                                                                                                                                                                | Value                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `environment`            | Environment to run expo-manager in                                                                                                                                         | `production`                   |
+| `rethinkdbName`          | Name of the rethinkdb database                                                                                                                                             | `expo`                         |
+| `apm.enabled`            | Enable APM                                                                                                                                                                 | `false`                        |
+| `apm.server`             | APM server fqdn                                                                                                                                                            | `localhost`                    |
+| `jwtSecret`              | JWT secret - ignored if existingSecret is set                                                                                                                              | `""`                           |
+| `initialUserPassword`    | Initial password for the first user - ignored if existingSecret is set                                                                                                     | `""`                           |
+| `existingSecret`         | Name of an existing secret to use for the jwtSecret (jwt-secret key), initialUserPassword (initial-user-password key) and email.senderPassword (email-sender-password key) | `""`                           |
+| `email.server`           | SMTP server hostname or IP                                                                                                                                                 | `example.com`                  |
+| `email.port`             | SMTP server port                                                                                                                                                           | `587`                          |
+| `email.senderAddress`    | Email address to send emails from                                                                                                                                          | `expo@example.com`             |
+| `email.senderName`       | Name to send emails from                                                                                                                                                   | `Expo 2023`                    |
+| `email.senderUsername`   | SMTP server username used for authentication                                                                                                                               | `expo@example.com`             |
+| `email.senderPassword`   | SMTP server password - ignored if existingSecret is set                                                                                                                    | `""`                           |
+| `email.bcc`              | Email address to send bcc emails to                                                                                                                                        | `expo@example.com`             |
+| `email.subject`          | Email subject                                                                                                                                                              | `Checkout stand`               |
+| `checkout.text.fr`       | Text to show in checkout email and documents in french                                                                                                                     | `Texte en français`            |
+| `checkout.text.nl`       | Text to show in checkout email and documents in dutch                                                                                                                      | `Tekst in het Nederlands`      |
+| `checkout.text.en`       | Text to show in checkout email and documents in english                                                                                                                    | `Text in English`              |
+| `checkout.entity`        | Entity name shown in email text and documents                                                                                                                              | `Befritco SCOM`                |
+| `exposition.id`          | Id of the exposition                                                                                                                                                       | `exposition2023`               |
+| `exposition.name`        | Name of the exposition                                                                                                                                                     | `Exposition 2023`              |
+| `exposition.description` | Description of the exposition                                                                                                                                              | `Expo 2023`                    |
+| `exposition.logo`        | Logo of the exposition (url)                                                                                                                                               | `https://example.com/logo.png` |
+| `debug`                  | Debug mode (use a string to enable - e.g. "*" for all)                                                                                                                     | `""`                           |
 
 
 ### Web parameters

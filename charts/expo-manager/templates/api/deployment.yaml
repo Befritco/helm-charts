@@ -77,6 +77,8 @@ spec:
               value: {{ .Values.email.senderAddress | quote }}
             - name: EMAIL_SENDER_NAME
               value: {{ .Values.email.senderName | quote }}
+            - name: EMAIL_SENDER_USERNAME
+              value: {{ .Values.email.senderUsername | quote }}
             - name: EMAIL_SENDER_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -84,6 +86,8 @@ spec:
                   key: {{ include "expo-manager.emailSenderPassword.secretKey" . }}
             - name: EMAIL_SENDER_SERVER
               value: {{ .Values.email.server | quote }}
+            - name: EMAIL_SENDER_PORT
+              value: {{ .Values.email.port | quote }}
             - name: EMAIL_BCC
               value: {{ .Values.email.bcc | quote }}
             - name: EMAIL_SUBJECT
