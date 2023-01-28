@@ -10,7 +10,7 @@ dependencies:
   - name: rethinkdb
     repository: https://fastlorenzo.github.io/rethinkdb-helm-chart
     condition: rethinkdb.enabled
-    version: 1.2.2
+    version: 1.2.3
   - name: common
     repository: https://charts.bitnami.com/bitnami
     tags:
