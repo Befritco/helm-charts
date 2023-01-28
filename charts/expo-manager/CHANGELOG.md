@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.8](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.7...expo-manager-1.0.8) (2023-01-28)
+
+
+### Bug Fixes
+
+* Updated dep ([a66ae1f](https://github.com/Befritco/helm-charts/commit/a66ae1f45d5a042b1a0822b43da2cc37d5c7cabc))
+
 ## [1.0.7](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.6...expo-manager-1.0.7) (2023-01-28)
 
 
