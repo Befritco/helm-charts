@@ -1,0 +1,26 @@
+{{- if .Values.pdb.enabled }}
+{{- range $component := list "api" "web" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ printf "%s-%s" (include "expo-manager.fullname" $) $component }}
+  namespace: {{ $.Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+  {{- with include "expo-manager.annotations" $ }}
+  {{- . | nindent 2 }}
+  {{- end }}
+spec:
+  {{- if $.Values.pdb.minAvailable }}
+  minAvailable: {{ $.Values.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $.Values.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "expo-manager.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}
+{{- end }}

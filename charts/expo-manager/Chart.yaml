@@ -1,18 +1,24 @@
 apiVersion: v2
 name: expo-manager
-description: A Helm chart to deploy Expo Manager
+description: Expo event-operations platform (API + web) with a single-node RethinkDB
 type: application
+# `version` is bumped by release-please (a `feat!:` commit takes it to 2.0.0); `appVersion` is
+# maintained by hand and is the default tag of the api/web images.
 version: 1.0.8
-appVersion: 1.16.0
+appVersion: "2.0.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/Befritco/helm-charts
+sources:
+  - https://github.com/Befritco/helm-charts
+  - https://github.com/Befritco/expo
+keywords:
+  - expo
+  - exposition
+  - rethinkdb
 maintainers:
   - name: fastlorenzo
 dependencies:
   - name: rethinkdb
-    repository: https://fastlorenzo.github.io/rethinkdb-helm-chart
+    version: "1.x.x"
+    repository: file://../rethinkdb
     condition: rethinkdb.enabled
-    version: 1.2.4
-  - name: common
-    repository: https://charts.bitnami.com/bitnami
-    tags:
-      - bitnami-common
-    version: 2.1.2

@@ -1,6 +1,44 @@
-{{- if .Values.ingress.enabled }}
-The application is available at the following URLs:
-{{ range $host := .Values.ingress.hosts }}
-  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host }}
+Expo Manager {{ .Chart.AppVersion }} (chart {{ .Chart.Version }}) -- release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Services (the names external routes must reference):
+  API : {{ include "expo-manager.api.serviceName" . }}:{{ .Values.api.service.port }}   (health: {{ .Values.api.healthPath }})
+  Web : {{ include "expo-manager.web.serviceName" . }}:{{ .Values.web.service.port }}   (health: {{ .Values.web.healthPath }})
+{{- if .Values.rethinkdb.enabled }}
+  DB  : {{ include "expo-manager.rethinkdb.fullname" . }}:28015 (Secret "{{ include "expo-manager.rethinkdb.secretName" . }}", key rethinkdb-password)
+{{- else }}
+  DB  : external, {{ include "expo-manager.rethinkdb.host" . }}:28015
 {{- end }}
+
+Application secrets: Secret "{{ include "expo-manager.secretName" . }}" (jwt-secret, initial-user-password, email-sender-password).
+{{- if and .Values.existingSecret .Values.rethinkdb.enabled (not .Values.rethinkdb.existingSecret) }}
+NOTE: existingSecret is set but rethinkdb.existingSecret is not -- the database password comes from the
+subchart's own Secret "{{ include "expo-manager.rethinkdb.secretName" . }}". If "{{ .Values.existingSecret }}" also
+carries rethinkdb-password, set rethinkdb.existingSecret to the same name.
+{{- end }}
+
+Routing:
+{{- if .Values.httpRoute.enabled }}
+  HTTPRoute "{{ include "expo-manager.fullname" . }}" rendered for {{ .Values.httpRoute.hostnames | join ", " | default "(no hostnames)" }}.
+{{- else if .Values.ingress.enabled }}
+  Ingress "{{ include "expo-manager.fullname" . }}" rendered for {{ .Values.ingress.hosts | join ", " | default "(no hosts)" }}.
+{{- else }}
+  No HTTPRoute or Ingress is rendered (httpRoute.enabled and ingress.enabled are both false).
+  Point your own route at the two Services above: /api/ and /socket.io -> API, everything else -> Web.
+{{- end }}
+
+Before upgrading across a release that ships a new database migration, take a dump first:
+  kubectl exec -n {{ .Release.Namespace }} {{ include "expo-manager.rethinkdb.fullname" . }}-0 -- \
+    sh -c 'rethinkdb dump -c localhost:28015 --password-file <(echo -n "$RETHINKDB_PASSWORD") -f /tmp/pre-upgrade.tar.gz'
+  kubectl cp {{ .Release.Namespace }}/{{ include "expo-manager.rethinkdb.fullname" . }}-0:/tmp/pre-upgrade.tar.gz ./pre-upgrade.tar.gz
+The API runs its migrations at boot and refuses to start half-migrated; restore with
+`rethinkdb restore <file> --force` if one fails.
+
+{{- if and .Values.rethinkdb.enabled .Values.rethinkdb.httpAdmin.enabled }}
+
+WARNING: the RethinkDB admin UI is ENABLED ({{ include "expo-manager.rethinkdb.fullname" . }}-admin:8080).
+It has no authentication of its own -- only expose it through a gateway/route that adds some.
+{{- else }}
+
+The RethinkDB admin UI is disabled (rethinkdb.httpAdmin.enabled=false). If you enable it, only expose
+it behind a gateway/route that adds authentication -- it has none of its own.
 {{- end }}

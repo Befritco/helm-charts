@@ -1,0 +1,92 @@
+{{- if .Values.httpRoute.enabled }}
+{{- if not .Values.httpRoute.parentRefs }}
+{{- fail "expo-manager: httpRoute.enabled requires httpRoute.parentRefs (the Gateway/ListenerSet the route attaches to)." }}
+{{- end }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "expo-manager.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
+    {{- with .Values.httpRoute.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.httpRoute.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- tpl (toYaml .) $ | nindent 4 }}
+    {{- end }}
+    {{- with .Values.httpRoute.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  {{- with .Values.httpRoute.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    # /api/ and /socket.io go straight to the API (one XFF hop: TRUST_PROXY=1).
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/
+        - path:
+            type: PathPrefix
+            value: /socket.io
+      backendRefs:
+        - name: {{ include "expo-manager.api.serviceName" . }}
+          port: {{ .Values.api.service.port }}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "expo-manager.web.serviceName" . }}
+          port: {{ .Values.web.service.port }}
+{{- if .Values.httpRoute.admin.enabled }}
+{{- if not (and .Values.rethinkdb.enabled .Values.rethinkdb.httpAdmin.enabled) }}
+{{- fail "expo-manager: httpRoute.admin.enabled requires the bundled RethinkDB with rethinkdb.httpAdmin.enabled=true (the admin Service does not exist otherwise)." }}
+{{- end }}
+{{- $adminParentRefs := .Values.httpRoute.admin.parentRefs | default .Values.httpRoute.parentRefs }}
+---
+# RethinkDB admin UI. It has NO authentication of its own: the Gateway this attaches to must add some.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "expo-manager.fullname" . }}-db
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
+    {{- with .Values.httpRoute.admin.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- if or .Values.httpRoute.admin.annotations .Values.commonAnnotations }}
+  annotations:
+    {{- with .Values.commonAnnotations }}
+    {{- tpl (toYaml .) $ | nindent 4 }}
+    {{- end }}
+    {{- with .Values.httpRoute.admin.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  parentRefs:
+    {{- toYaml $adminParentRefs | nindent 4 }}
+  {{- with .Values.httpRoute.admin.hostnames }}
+  hostnames:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: {{ include "expo-manager.rethinkdb.fullname" . }}-admin
+          port: 8080
+{{- end }}
+{{- end }}
