@@ -6,4 +6,5 @@ chart-dirs:
 check-version-increment: false
 validate-maintainers: false
 namespace: expo-ci
+release-label: app.kubernetes.io/instance
 helm-extra-args: --timeout 600s
