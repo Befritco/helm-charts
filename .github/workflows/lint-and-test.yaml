@@ -66,12 +66,7 @@ jobs:
           done
 
       - name: Install readme-generator-for-helm
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          latest_tag=$(gh api repos/bitnami/readme-generator-for-helm/tags --jq '.[0].name')
-          echo "Installing readme-generator-for-helm@${latest_tag}"
-          npm install -g "github:bitnami/readme-generator-for-helm#${latest_tag}"
+        run: npm install -g "github:bitnami/readme-generator-for-helm#3.0.1"
 
       - name: Check README and values.schema.json freshness
         run: |
@@ -117,6 +112,10 @@ jobs:
       - name: Create kind cluster
         if: steps.list-changed.outputs.changed == 'true'
         uses: helm/kind-action@v1
+
+      - name: Install Gateway API CRDs
+        if: steps.list-changed.outputs.changed == 'true'
+        run: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
 
       - name: Create expo-ci namespace
         if: steps.list-changed.outputs.changed == 'true'
