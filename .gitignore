@@ -1,4 +1,6 @@
 charts/*/charts
+charts/*/Chart.lock
 rethinkdb_data/
 gh-pages/
 .cr-release-packages
+.cr-index/
