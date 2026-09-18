@@ -1,6 +1,9 @@
-{{- if gt (int .Values.replicaCount) 1 -}}
-{{- fail "rethinkdb: replicaCount > 1 is not supported. This chart runs a single RethinkDB node with no cluster-join configuration; set replicaCount back to 1." -}}
+{{- $replicas := int .Values.replicaCount -}}
+{{- if lt $replicas 1 -}}
+{{- fail "rethinkdb: replicaCount must be at least 1." -}}
 {{- end -}}
+{{- $fullname := include "rethinkdb.fullname" . -}}
+{{- $peerDomain := printf "%s-headless.%s.svc.%s" $fullname .Release.Namespace .Values.clusterDomain -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -9,7 +12,10 @@ metadata:
     {{- include "rethinkdb.labels" . | nindent 4 }}
 spec:
   serviceName: {{ include "rethinkdb.fullname" . }}-headless
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ $replicas }}
+  # OrderedReady (the default) is immutable once created, so it is kept for 1.0.0 installs; the
+  # join logic in the container command relies on it (lower ordinals are Ready before a pod starts).
+  podManagementPolicy: OrderedReady
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
@@ -36,9 +42,19 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- if .Values.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml .Values.affinity | nindent 8 }}
+      {{- else if gt $replicas 1 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "rethinkdb.selectorLabels" . | nindent 20 }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
@@ -59,17 +75,53 @@ spec:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           command:
             - sh
-            - -c
-            - >-
-              exec rethinkdb --bind all --directory /data/db --cache-size {{ .Values.cacheSizeMB }}
-              {{- if not .Values.httpAdmin.enabled }} --no-http-admin{{ end }}
-              --initial-password "$RETHINKDB_PASSWORD"
+            - -ec
+            - |
+              # Server name: the pod hostname with every character RethinkDB rejects mapped to "_"
+              # (it allows [A-Za-z0-9_] only). Ignored, with a warning, once the data directory
+              # already carries a name -- RethinkDB keeps the persisted identity.
+              HOSTNAME="${HOSTNAME:-$(cat /proc/sys/kernel/hostname)}"
+              server_name="$(printf '%s' "$HOSTNAME" | tr -c 'A-Za-z0-9_' '_')"
+              set -- --server-name "$server_name" --canonical-address "$HOSTNAME.$PEER_DOMAIN"
+              {{- if gt $replicas 1 }}
+              # Cluster members: --join every other ordinal by its stable headless-Service name.
+              # RethinkDB exits when a --join hostname does not resolve at startup, and only opens
+              # its driver port once one join has succeeded, so the peer list is built to match
+              # what OrderedReady guarantees: lower ordinals exist (and are Ready) before this pod
+              # starts, so they are waited for (bounded) and joined; higher ordinals are joined
+              # only if they already resolve (rolling restart, full-cluster restart) and are
+              # otherwise left to dial this pod themselves when they come up. On a cold start
+              # pod 0 therefore starts alone and every later pod joins its predecessors.
+              ordinal="${HOSTNAME##*-}"
+              deadline=$(( $(date +%s) + {{ int .Values.cluster.peerResolveTimeoutSeconds }} ))
+              for i in $(seq 0 {{ sub $replicas 1 }}); do
+                [ "$i" -eq "$ordinal" ] && continue
+                peer="{{ $fullname }}-$i.$PEER_DOMAIN"
+                if [ "$i" -lt "$ordinal" ]; then
+                  until getent hosts "$peer" >/dev/null 2>&1; do
+                    if [ "$(date +%s)" -ge "$deadline" ]; then
+                      echo "rethinkdb: peer $peer did not resolve in time, starting without it" >&2
+                      break
+                    fi
+                    sleep 2
+                  done
+                fi
+                getent hosts "$peer" >/dev/null 2>&1 && set -- "$@" --join "$peer:29015"
+              done
+              {{- end }}
+              exec rethinkdb --bind all --directory /data/db --cache-size {{ .Values.cacheSizeMB }} \
+              {{- if not .Values.httpAdmin.enabled }}
+                --no-http-admin \
+              {{- end }}
+                --initial-password "$RETHINKDB_PASSWORD" "$@"
           env:
             - name: RETHINKDB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "rethinkdb.secretName" . }}
                   key: rethinkdb-password
+            - name: PEER_DOMAIN
+              value: {{ $peerDomain | quote }}
           ports:
             - name: tcp-driver
               containerPort: 28015

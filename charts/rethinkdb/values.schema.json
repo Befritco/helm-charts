@@ -28,6 +28,11 @@
             "description": "String to partially override rethinkdb.fullname",
             "default": ""
         },
+        "clusterDomain": {
+            "type": "string",
+            "description": "Kubernetes cluster domain, used to build the pods' stable DNS names (`<pod>.<fullname>-headless.<namespace>.svc.<clusterDomain>`)",
+            "default": "cluster.local"
+        },
         "image": {
             "type": "object",
             "properties": {
@@ -66,8 +71,18 @@
         },
         "replicaCount": {
             "type": "number",
-            "description": "Number of RethinkDB replicas. Clustering is not supported by this chart -- any value other than 1 fails the render.",
+            "description": "Number of RethinkDB servers. `1` runs a single node; any higher value forms a cluster in which every pod joins every other pod (an odd count, typically 3, is recommended so table primaries can be elected by majority). Table replication is a per-table setting that the application (or you) must raise afterwards -- see README \"Replication\".",
             "default": 1
+        },
+        "cluster": {
+            "type": "object",
+            "properties": {
+                "peerResolveTimeoutSeconds": {
+                    "type": "number",
+                    "description": "How long (seconds) a starting member waits for the DNS records of its lower-ordinal peers before starting without those `--join`s. RethinkDB exits when a `--join` hostname does not resolve; a peer that comes up later joins on its own.",
+                    "default": 60
+                }
+            }
         },
         "existingSecret": {
             "type": "string",
@@ -76,7 +91,7 @@
         },
         "rethinkdbPassword": {
             "type": "string",
-            "description": "RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades.",
+            "description": "RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades; the generated Secret is kept on uninstall (like the data PVCs) so a reinstall under the same release name reuses it -- see README \"Reinstalling with retained volumes\".",
             "default": ""
         },
         "cacheSizeMB": {
@@ -137,7 +152,7 @@
         },
         "affinity": {
             "type": "object",
-            "description": "Affinity for pod assignment",
+            "description": "Affinity for pod assignment. When empty and `replicaCount` > 1, a preferred pod anti-affinity on `kubernetes.io/hostname` spreads the members across nodes.",
             "default": {}
         },
         "topologySpreadConstraints": {
@@ -411,13 +426,13 @@
             "properties": {
                 "enabled": {
                     "type": "boolean",
-                    "description": "Create a PodDisruptionBudget. With a single replica this only prevents *voluntary* evictions from also being disruptive, so it defaults off.",
-                    "default": false
+                    "description": "Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability.",
+                    "default": true
                 },
                 "maxUnavailable": {
                     "type": "number",
                     "description": "Max unavailable pods allowed by the PodDisruptionBudget",
-                    "default": 0
+                    "default": 1
                 }
             }
         },

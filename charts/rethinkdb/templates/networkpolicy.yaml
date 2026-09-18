@@ -24,6 +24,14 @@ spec:
     - ports:
         - protocol: TCP
           port: 15008
+    # Intracluster traffic from the other members of this release.
+    - ports:
+        - protocol: TCP
+          port: 29015
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "rethinkdb.selectorLabels" . | nindent 14 }}
     # Driver connections, restricted to the configured selectors (empty means none allowed).
     - ports:
         - protocol: TCP
@@ -35,6 +43,14 @@ spec:
     - ports:
         - protocol: TCP
           port: 15008
+    # Intracluster traffic to the other members of this release.
+    - ports:
+        - protocol: TCP
+          port: 29015
+      to:
+        - podSelector:
+            matchLabels:
+              {{- include "rethinkdb.selectorLabels" . | nindent 14 }}
     # DNS
     - ports:
         - protocol: UDP

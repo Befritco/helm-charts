@@ -1,5 +1,5 @@
 # Default values for rethinkdb.
-# Single-node RethinkDB. Clustering is not supported by this chart -- replicaCount must stay at 1.
+# One RethinkDB node by default; replicaCount > 1 forms a cluster (see README "Clustering and HA").
 
 ## @section Global parameters
 ## @param global.imageRegistry Global container image registry, overrides `image.registry` for all images
@@ -14,6 +14,8 @@ global:
 
 ## @param nameOverride String to partially override rethinkdb.fullname
 nameOverride: ""
+## @param clusterDomain Kubernetes cluster domain, used to build the pods' stable DNS names (`<pod>.<fullname>-headless.<namespace>.svc.<clusterDomain>`)
+clusterDomain: cluster.local
 
 ## @section RethinkDB image parameters
 
@@ -33,12 +35,16 @@ image:
 
 ## @section RethinkDB parameters
 
-## @param replicaCount Number of RethinkDB replicas. Clustering is not supported by this chart -- any value other than 1 fails the render.
+## @param replicaCount Number of RethinkDB servers. `1` runs a single node; any higher value forms a cluster in which every pod joins every other pod (an odd count, typically 3, is recommended so table primaries can be elected by majority). Table replication is a per-table setting that the application (or you) must raise afterwards -- see README "Replication".
 replicaCount: 1
+
+## @param cluster.peerResolveTimeoutSeconds How long (seconds) a starting member waits for the DNS records of its lower-ordinal peers before starting without those `--join`s. RethinkDB exits when a `--join` hostname does not resolve; a peer that comes up later joins on its own.
+cluster:
+  peerResolveTimeoutSeconds: 60
 
 ## @param existingSecret Name of an existing Secret carrying the admin password under the `rethinkdb-password` key. Takes precedence over `rethinkdbPassword`.
 existingSecret: ""
-## @param rethinkdbPassword RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades.
+## @param rethinkdbPassword RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades; the generated Secret is kept on uninstall (like the data PVCs) so a reinstall under the same release name reuses it -- see README "Reinstalling with retained volumes".
 rethinkdbPassword: ""
 
 ## @param cacheSizeMB RethinkDB `--cache-size` in MB. Keep comfortably below `resources.limits.memory` (RethinkDB's own bookkeeping and connection buffers also need headroom) -- the 512Mi default fits the 2Gi memory limit default.
@@ -65,7 +71,7 @@ podLabels: {}
 nodeSelector: {}
 ## @param tolerations Tolerations for pod assignment
 tolerations: []
-## @param affinity Affinity for pod assignment
+## @param affinity Affinity for pod assignment. When empty and `replicaCount` > 1, a preferred pod anti-affinity on `kubernetes.io/hostname` spreads the members across nodes.
 affinity: {}
 ## @param topologySpreadConstraints Topology spread constraints for the pod
 topologySpreadConstraints: []
@@ -176,14 +182,15 @@ persistence:
 
 ## @section Other parameters
 
-## @param pdb.enabled Create a PodDisruptionBudget. With a single replica this only prevents *voluntary* evictions from also being disruptive, so it defaults off.
+## @param pdb.enabled Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability.
 ## @param pdb.maxUnavailable Max unavailable pods allowed by the PodDisruptionBudget
 pdb:
-  enabled: false
-  maxUnavailable: 0
+  enabled: true
+  maxUnavailable: 1
 
 ## NetworkPolicy is off by default so the chart works unmodified outside a mesh. On an Istio
 ## ambient mesh, port 15008 is the HBONE tunnel port used for all mTLS'd traffic to/from the pod.
+## Cluster traffic (29015) between the chart's own pods is always allowed.
 ## @param networkPolicy.enabled Create a NetworkPolicy restricting traffic to the pod
 ## @param networkPolicy.allowedPodSelectors List of `matchLabels` maps allowed to reach the driver port (28015)
 ## @param networkPolicy.allowedNamespaceSelectors List of namespace `matchLabels` maps allowed to reach the driver port (28015)

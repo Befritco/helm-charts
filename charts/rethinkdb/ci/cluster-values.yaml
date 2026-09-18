@@ -1,0 +1,12 @@
+# chart-testing values: a real 3-member cluster on a kind node (small PVCs and resources).
+replicaCount: 3
+persistence:
+  size: 1Gi
+cacheSizeMB: 128
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

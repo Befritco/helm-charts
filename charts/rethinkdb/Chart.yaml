@@ -1,6 +1,6 @@
 apiVersion: v2
 name: rethinkdb
-description: Single-node RethinkDB for the Expo platform
+description: RethinkDB for the Expo platform, single node or cluster
 type: application
 version: 1.0.0
 appVersion: "2.4.4"

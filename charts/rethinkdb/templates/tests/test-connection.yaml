@@ -6,6 +6,7 @@ metadata:
     {{- include "rethinkdb.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   {{- include "rethinkdb.imagePullSecrets" . | nindent 2 }}
   restartPolicy: Never
@@ -15,5 +16,10 @@ spec:
       imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
       command:
         - sh
-        - -c
-        - "nc -z -w 5 {{ include "rethinkdb.fullname" . }} 28015"
+        - -ec
+        - |
+          # Driver Service, then every member individually through the headless Service.
+          nc -z -w 5 {{ include "rethinkdb.fullname" . }} 28015
+          for i in $(seq 0 {{ sub (int .Values.replicaCount) 1 }}); do
+            nc -z -w 5 {{ include "rethinkdb.fullname" . }}-$i.{{ include "rethinkdb.fullname" . }}-headless 28015
+          done

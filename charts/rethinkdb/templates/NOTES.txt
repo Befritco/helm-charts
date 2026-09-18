@@ -1,10 +1,32 @@
-RethinkDB ({{ .Chart.AppVersion }}) is running as a single-node StatefulSet:
-{{ include "rethinkdb.fullname" . }}-0 (namespace {{ .Release.Namespace }})
+RethinkDB ({{ .Chart.AppVersion }}) is running as a StatefulSet with {{ .Values.replicaCount }} server(s):
+{{- range $i := until (int .Values.replicaCount) }}
+  {{ include "rethinkdb.fullname" $ }}-{{ $i }}
+{{- end }}
+(namespace {{ .Release.Namespace }})
 
-Driver connection (from inside the cluster):
-  {{ include "rethinkdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:28015
+Driver connection (from inside the cluster, spread across the ready servers):
+  {{ include "rethinkdb.fullname" . }}.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:28015
 
 The admin password lives in Secret "{{ include "rethinkdb.secretName" . }}", key "rethinkdb-password".
+{{- if not .Values.existingSecret }}
+That Secret is kept on uninstall, like the data volumes: reinstalling under the same release name
+reuses it. If you delete it but keep the volumes, the data keeps the OLD password and the new
+one will not work -- reinstall with existingSecret pointing at a Secret that holds the old one,
+or delete the retained PVCs (data-{{ include "rethinkdb.fullname" . }}-N) to start empty.
+{{- else }}
+On uninstall the data volumes are retained; keep that Secret in step with them (the data keeps
+the password it was initialised with, later --initial-password values are ignored).
+{{- end }}
+
+{{- if gt (int .Values.replicaCount) 1 }}
+
+Clustering: the {{ .Values.replicaCount }} servers join each other through the headless Service
+"{{ include "rethinkdb.fullname" . }}-headless". Replication is a PER-TABLE setting: new tables
+still start with 1 replica until reconfigured -- the Expo API does this itself from
+RETHINKDB_TABLE_REPLICAS/RETHINKDB_TABLE_SHARDS; for anything else, run e.g.
+  r.db('<db>').reconfigure({shards: 1, replicas: {{ .Values.replicaCount }}})
+See the chart README, sections "Clustering and HA" and "Replication".
+{{- end }}
 
 {{- if .Values.httpAdmin.enabled }}
 
@@ -18,10 +40,12 @@ The admin web UI is disabled (httpAdmin.enabled=false, the default). If you enab
 expose it behind a gateway/route that adds authentication -- it has none of its own.
 {{- end }}
 
-Back up regularly. From inside the pod, e.g.:
-  kubectl exec -n {{ .Release.Namespace }} {{ include "rethinkdb.fullname" . }}-0 -- \
-    rethinkdb dump -c localhost:28015 --password-file <(echo -n "$RETHINKDB_PASSWORD") -f /tmp/backup.tar.gz
-  kubectl cp {{ .Release.Namespace }}/{{ include "rethinkdb.fullname" . }}-0:/tmp/backup.tar.gz ./backup.tar.gz
+Back up regularly. The official image ships no Python driver, so run the dump from a pod that
+has one, against the driver Service, e.g.:
+  kubectl run -n {{ .Release.Namespace }} rethinkdb-backup --image=python:3-alpine --restart=Never \
+    --env="RDB_PASSWORD=$(kubectl get secret -n {{ .Release.Namespace }} {{ include "rethinkdb.secretName" . }} -o jsonpath='{.data.rethinkdb-password}' | base64 -d)" \
+    --command -- sh -c 'pip install -q rethinkdb && printf %s "$RDB_PASSWORD" > /tmp/pw && rethinkdb-dump -c {{ include "rethinkdb.fullname" . }}:28015 --password-file /tmp/pw -f /tmp/backup.tar.gz && sleep 3600'
+  kubectl cp -n {{ .Release.Namespace }} rethinkdb-backup:/tmp/backup.tar.gz ./backup.tar.gz
 
 See the chart README's "Upgrading from the 1.x fork" section if you are migrating data from the
 old fastlorenzo/rethinkdb-helm-chart cluster.
