@@ -1,0 +1,44 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $from := list }}
+{{- range .Values.networkPolicy.allowedPodSelectors }}
+{{- $from = append $from (dict "podSelector" (dict "matchLabels" .)) }}
+{{- end }}
+{{- range .Values.networkPolicy.allowedNamespaceSelectors }}
+{{- $from = append $from (dict "namespaceSelector" (dict "matchLabels" .)) }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "rethinkdb.fullname" . }}
+  labels:
+    {{- include "rethinkdb.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "rethinkdb.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Istio ambient HBONE tunnel: all mesh mTLS traffic to this pod arrives on 15008.
+    - ports:
+        - protocol: TCP
+          port: 15008
+    # Driver connections, restricted to the configured selectors (empty means none allowed).
+    - ports:
+        - protocol: TCP
+          port: 28015
+      from:
+{{ toYaml $from | indent 8 }}
+  egress:
+    # Istio ambient HBONE tunnel, outbound.
+    - ports:
+        - protocol: TCP
+          port: 15008
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

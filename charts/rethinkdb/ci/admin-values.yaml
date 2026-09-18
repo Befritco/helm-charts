@@ -1,0 +1,5 @@
+# chart-testing values: exercises the optional admin UI service/render path.
+persistence:
+  size: 1Gi
+httpAdmin:
+  enabled: true

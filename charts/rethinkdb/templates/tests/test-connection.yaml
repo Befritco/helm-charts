@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "rethinkdb.fullname" . }}-test-connection
+  labels:
+    {{- include "rethinkdb.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  {{- include "rethinkdb.imagePullSecrets" . | nindent 2 }}
+  restartPolicy: Never
+  containers:
+    - name: nc
+      image: {{ .Values.tests.image.registry }}/{{ .Values.tests.image.repository }}:{{ .Values.tests.image.tag }}
+      imagePullPolicy: {{ .Values.tests.image.pullPolicy }}
+      command:
+        - sh
+        - -c
+        - "nc -z -w 5 {{ include "rethinkdb.fullname" . }} 28015"

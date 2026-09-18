@@ -1,0 +1,27 @@
+RethinkDB ({{ .Chart.AppVersion }}) is running as a single-node StatefulSet:
+{{ include "rethinkdb.fullname" . }}-0 (namespace {{ .Release.Namespace }})
+
+Driver connection (from inside the cluster):
+  {{ include "rethinkdb.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:28015
+
+The admin password lives in Secret "{{ include "rethinkdb.secretName" . }}", key "rethinkdb-password".
+
+{{- if .Values.httpAdmin.enabled }}
+
+WARNING: the admin web UI is ENABLED, exposed as ClusterIP service
+"{{ include "rethinkdb.fullname" . }}-admin" on port 8080. RethinkDB's admin UI has no
+authentication of its own. Only reach it through a gateway/route that adds authentication
+(e.g. basic auth at the mesh gateway) -- never expose it directly.
+{{- else }}
+
+The admin web UI is disabled (httpAdmin.enabled=false, the default). If you enable it, only
+expose it behind a gateway/route that adds authentication -- it has none of its own.
+{{- end }}
+
+Back up regularly. From inside the pod, e.g.:
+  kubectl exec -n {{ .Release.Namespace }} {{ include "rethinkdb.fullname" . }}-0 -- \
+    rethinkdb dump -c localhost:28015 --password-file <(echo -n "$RETHINKDB_PASSWORD") -f /tmp/backup.tar.gz
+  kubectl cp {{ .Release.Namespace }}/{{ include "rethinkdb.fullname" . }}-0:/tmp/backup.tar.gz ./backup.tar.gz
+
+See the chart README's "Upgrading from the 1.x fork" section if you are migrating data from the
+old fastlorenzo/rethinkdb-helm-chart cluster.

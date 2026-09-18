@@ -1,0 +1,3 @@
+# chart-testing values: small PVC so `ct install` fits on a kind node.
+persistence:
+  size: 1Gi

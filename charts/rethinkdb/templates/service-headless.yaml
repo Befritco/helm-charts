@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rethinkdb.fullname" . }}-headless
+  labels:
+    {{- include "rethinkdb.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: tcp-driver
+      port: 28015
+      targetPort: tcp-driver
+    - name: tcp-cluster
+      port: 29015
+      targetPort: tcp-cluster
+  selector:
+    {{- include "rethinkdb.selectorLabels" . | nindent 4 }}
