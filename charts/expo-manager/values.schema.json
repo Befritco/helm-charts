@@ -243,7 +243,7 @@
                 },
                 "logo": {
                     "type": "string",
-                    "description": "`EXPOSITION_LOGO`: logo of the seeded exposition, as a PNG, JPEG or WebP image data URI of at most 512 KiB, or empty. Since api 3.0.0 a URL is ignored (seeded empty): logos are uploaded in the web app.",
+                    "description": "`EXPOSITION_LOGO`: unused by the API (the seed reads infra/seed/exposition.json, not this). Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.",
                     "default": ""
                 }
             }
