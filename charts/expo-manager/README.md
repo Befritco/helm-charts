@@ -1,196 +1,371 @@
-# Expo manager Helm chart
+# Expo Manager Helm chart
+
+Deploys the [Expo](https://github.com/Befritco/expo) event-operations platform: the API
+(`ghcr.io/befritco/expo/api`, Express + socket.io, PDF rendering with Chromium), the web tier
+(`ghcr.io/befritco/expo/web`, nginx serving the SPA and proxying `/api/v1`, `/socket.io`,
+`/api-docs` and `/healthz` to the API) and, through the bundled
+[`rethinkdb`](../rethinkdb) subchart, a single-node RethinkDB.
+
+```console
+helm install my-expo oci://ghcr.io/befritco/charts/expo-manager \
+  --set corsOrigins=https://expo.example.com
+```
+
+What the chart renders by default:
+
+- `<release>-expo-manager-api`: a **Deployment** with `strategy: Recreate` and exactly one replica
+  (the API has no socket.io adapter, its volumes are RWO and the boot migration ledger is not a
+  lock -- the chart refuses to render `api.replicaCount > 1`), a ConfigMap with every non-secret
+  environment variable (`envFrom`, with a `checksum/config` pod annotation so config changes roll
+  the pod), the four secrets (`JWT_SECRET`, `INITIAL_USER_PASSWORD`, `EMAIL_SENDER_PASSWORD`,
+  `RETHINKDB_PASSWORD`) as `secretKeyRef`s, probes on `/healthz` with a startupProbe that tolerates
+  the boot migration, PVCs for `/expo/photos` and `/expo/reports`, an in-memory `emptyDir` on
+  `/dev/shm` (Chromium), non-root (uid 1000) with all capabilities dropped.
+- `<release>-expo-manager-web`: a rolling-update Deployment of the nginx image, `API_UPSTREAM`
+  pointed at the API Service, probes on `/nginx-health`, a `preStop` sleep. No securityContext by
+  default (see `web.podSecurityContext` in the parameters table).
+- Services `<release>-expo-manager-api:9000` and `<release>-expo-manager-web:80` (port name
+  `http`) -- the names external HTTPRoutes/Ingresses must reference.
+- The `rethinkdb` subchart: StatefulSet `<release>-rethinkdb`, driver Service
+  `<release>-rethinkdb:28015`, its own generated Secret unless `rethinkdb.existingSecret` is set.
+- **No route.** `httpRoute` (Gateway API) and `ingress` are both opt-in and off by default; so are
+  `networkPolicy` and `pdb`.
+
+Required value: `corsOrigins`. Recommended for production: `existingSecret` (+
+`rethinkdb.existingSecret` pointing at the same Secret when it carries `rethinkdb-password`),
+`global.imagePullSecrets`, a backup label on the three PVCs, `trustProxy` set to the real hop
+count.
 
 ## Parameters
 
 ### Global parameters
 
-| Name                      | Description                                       | Value |
-| ------------------------- | ------------------------------------------------- | ----- |
-| `global.imageRegistry`    | Global container image registry                   | `""`  |
-| `global.imagePullSecrets` | Global container image pull secret                | `[]`  |
-| `global.storageClass`     | Global storageClass to use for persistent volumes | `""`  |
-
+| Name                      | Description                                                                                                                                                        | Value |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- |
+| `global.imageRegistry`    | Global container image registry, overrides `api.image.registry`, `web.image.registry` and the subchart's `image.registry`                                          | `""`  |
+| `global.imagePullSecrets` | Global list of image pull secret names (e.g. `[befritco-docker-secret]`), merged with `api.image.pullSecrets` / `web.image.pullSecrets` and passed to the subchart | `[]`  |
+| `global.storageClass`     | Global storageClass for every PVC, overridden per volume by `api.persistence.<volume>.storageClass` / `rethinkdb.persistence.storageClass`                         | `""`  |
 
 ### Common parameters
 
-| Name                         | Description                                                                                                             | Value  |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ |
-| `nameOverride`               | String to partially override mailu.fullname include (will maintain the release name)                                    | `""`   |
-| `fullnameOverride`           | String to fully override mailu.fullname template                                                                        | `""`   |
-| `commonLabels`               | Add labels to all the deployed resources                                                                                | `{}`   |
-| `commonAnnotations`          | Add annotations to all the deployed resources                                                                           | `{}`   |
-| `tolerations`                | Tolerations for pod assignment                                                                                          | `[]`   |
-| `affinity`                   | Affinity for pod assignment                                                                                             | `{}`   |
-| `serviceAccount.create`      | Specifies whether a service account should be created                                                                   | `true` |
-| `serviceAccount.annotations` | Annotations to add to the service account                                                                               | `{}`   |
-| `serviceAccount.name`        | The name of the service account to use - if not set and create is true, a name is generated using the fullname template | `""`   |
+| Name                                          | Description                                                                                                                 | Value   |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `nameOverride`                                | String to partially override expo-manager.fullname (keeps the release name)                                                 | `""`    |
+| `fullnameOverride`                            | String to fully override expo-manager.fullname. Service names become `<fullnameOverride>-api` and `<fullnameOverride>-web`. | `""`    |
+| `commonLabels`                                | Labels added to every resource this chart creates (templated)                                                               | `{}`    |
+| `commonAnnotations`                           | Annotations added to every resource this chart creates (templated)                                                          | `{}`    |
+| `serviceAccount.create`                       | Create a ServiceAccount for the api and web pods                                                                            | `true`  |
+| `serviceAccount.name`                         | Name of the ServiceAccount to use. Generated from the fullname when empty and `create` is true; `default` otherwise.        | `""`    |
+| `serviceAccount.annotations`                  | Annotations for the ServiceAccount                                                                                          | `{}`    |
+| `serviceAccount.automountServiceAccountToken` | Mount the ServiceAccount token into the pods. Neither container talks to the Kubernetes API, so this stays off.             | `false` |
 
+### Application configuration
 
-### Expo-manager parameters
-
-| Name                     | Description                                                                                                                                                                | Value                          |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `environment`            | Environment to run expo-manager in                                                                                                                                         | `production`                   |
-| `rethinkdbName`          | Name of the rethinkdb database                                                                                                                                             | `expo`                         |
-| `apm.enabled`            | Enable APM                                                                                                                                                                 | `false`                        |
-| `apm.server`             | APM server fqdn                                                                                                                                                            | `localhost`                    |
-| `jwtSecret`              | JWT secret - ignored if existingSecret is set                                                                                                                              | `""`                           |
-| `initialUserPassword`    | Initial password for the first user - ignored if existingSecret is set                                                                                                     | `""`                           |
-| `existingSecret`         | Name of an existing secret to use for the jwtSecret (jwt-secret key), initialUserPassword (initial-user-password key) and email.senderPassword (email-sender-password key) | `""`                           |
-| `email.server`           | SMTP server hostname or IP                                                                                                                                                 | `example.com`                  |
-| `email.port`             | SMTP server port                                                                                                                                                           | `587`                          |
-| `email.senderAddress`    | Email address to send emails from                                                                                                                                          | `expo@example.com`             |
-| `email.senderName`       | Name to send emails from                                                                                                                                                   | `Expo 2023`                    |
-| `email.senderUsername`   | SMTP server username used for authentication                                                                                                                               | `expo@example.com`             |
-| `email.senderPassword`   | SMTP server password - ignored if existingSecret is set                                                                                                                    | `""`                           |
-| `email.bcc`              | Email address to send bcc emails to                                                                                                                                        | `expo@example.com`             |
-| `email.subject`          | Email subject                                                                                                                                                              | `Checkout stand`               |
-| `checkout.text.fr`       | Text to show in checkout email and documents in french                                                                                                                     | `Texte en français`            |
-| `checkout.text.nl`       | Text to show in checkout email and documents in dutch                                                                                                                      | `Tekst in het Nederlands`      |
-| `checkout.text.en`       | Text to show in checkout email and documents in english                                                                                                                    | `Text in English`              |
-| `checkout.entity`        | Entity name shown in email text and documents                                                                                                                              | `Befritco SCOM`                |
-| `exposition.id`          | Id of the exposition                                                                                                                                                       | `exposition2023`               |
-| `exposition.name`        | Name of the exposition                                                                                                                                                     | `Exposition 2023`              |
-| `exposition.description` | Description of the exposition                                                                                                                                              | `Expo 2023`                    |
-| `exposition.logo`        | Logo of the exposition (url)                                                                                                                                               | `https://example.com/logo.png` |
-| `debug`                  | Debug mode (use a string to enable - e.g. "*" for all)                                                                                                                     | `""`                           |
-
-
-### Web parameters
-
-| Name                                     | Description                                               | Value               |
-| ---------------------------------------- | --------------------------------------------------------- | ------------------- |
-| `web.replicaCount`                       | Number of web replicas to deploy                          | `1`                 |
-| `web.image.registry`                     | Pod image registry                                        | `ghcr.io`           |
-| `web.image.repository`                   | Pod image repository                                      | `befritco/expo-web` |
-| `web.image.tag`                          | Pod image tag (defaults to appVersion)                    | `""`                |
-| `web.image.pullPolicy`                   | Pod image pull policy                                     | `IfNotPresent`      |
-| `web.image.digest`                       | Pod image digest (overrides tag)                          | `""`                |
-| `web.image.pullSecrets`                  | Pod image pull secrets                                    | `[]`                |
-| `web.service.type`                       | web service type                                          | `ClusterIP`         |
-| `web.service.port`                       | web service port                                          | `80`                |
-| `web.service.annotations`                | web service annotations                                   | `{}`                |
-| `web.resources.limits`                   | The resources limits for the container                    | `{}`                |
-| `web.resources.requests`                 | The requested resources for the container                 | `{}`                |
-| `web.livenessProbe.enabled`              | Enable livenessProbe                                      | `true`              |
-| `web.livenessProbe.failureThreshold`     | Failure threshold for livenessProbe                       | `3`                 |
-| `web.livenessProbe.initialDelaySeconds`  | Initial delay seconds for livenessProbe                   | `10`                |
-| `web.livenessProbe.periodSeconds`        | Period seconds for livenessProbe                          | `10`                |
-| `web.livenessProbe.successThreshold`     | Success threshold for livenessProbe                       | `1`                 |
-| `web.livenessProbe.timeoutSeconds`       | Timeout seconds for livenessProbe                         | `5`                 |
-| `web.readinessProbe.enabled`             | Enable readinessProbe                                     | `true`              |
-| `web.readinessProbe.initialDelaySeconds` | Initial delay seconds for readinessProbe                  | `10`                |
-| `web.readinessProbe.periodSeconds`       | Period seconds for readinessProbe                         | `10`                |
-| `web.readinessProbe.timeoutSeconds`      | Timeout seconds for readinessProbe                        | `5`                 |
-| `web.readinessProbe.failureThreshold`    | Failure threshold for readinessProbe                      | `1`                 |
-| `web.readinessProbe.successThreshold`    | Success threshold for readinessProbe                      | `1`                 |
-| `web.startupProbe.enabled`               | Enable startupProbe                                       | `false`             |
-| `web.startupProbe.initialDelaySeconds`   | Initial delay seconds for startupProbe                    | `10`                |
-| `web.startupProbe.periodSeconds`         | Period seconds for startupProbe                           | `10`                |
-| `web.startupProbe.timeoutSeconds`        | Timeout seconds for startupProbe                          | `5`                 |
-| `web.startupProbe.failureThreshold`      | Failure threshold for startupProbe                        | `30`                |
-| `web.startupProbe.successThreshold`      | Success threshold for startupProbe                        | `1`                 |
-| `web.podLabels`                          | Add extra labels to pod                                   | `{}`                |
-| `web.podAnnotations`                     | Add extra annotations to the pod                          | `{}`                |
-| `web.nodeSelector`                       | Node labels selector for pod assignment                   | `{}`                |
-| `web.initContainers`                     | Add additional init containers to the pod                 | `[]`                |
-| `web.priorityClassName`                  | Pods' priorityClassName                                   | `""`                |
-| `web.terminationGracePeriodSeconds`      | In seconds, time given to the pod to terminate gracefully | `2`                 |
-| `web.affinity`                           | Affinity for front pod assignment                         | `{}`                |
-| `web.tolerations`                        | Tolerations for pod assignment                            | `[]`                |
-| `web.topologySpreadConstraints`          | Topology Spread Constraints for pod assignment            | `[]`                |
-| `web.updateStrategy.type`                | Strategy to use to update Pods                            | `RollingUpdate`     |
-
+| Name                      | Description                                                                                                                                                                                                                                                                                                                                       | Value                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `environment`             | `NODE_ENV` of the API. `production` hides stack traces and makes the API refuse to start on a weak/empty `JWT_SECRET` or `INITIAL_USER_PASSWORD`.                                                                                                                                                                                                 | `production`                                                                                                              |
+| `rethinkdbName`           | `RETHINKDB_NAME`, the RethinkDB database name                                                                                                                                                                                                                                                                                                     | `expo`                                                                                                                    |
+| `corsOrigins`             | `CORS_ORIGINS`: comma-separated allowlist of browser origins allowed to call the API (e.g. `https://expo.example.com`). Required -- the chart refuses to render with an empty value.                                                                                                                                                              | `""`                                                                                                                      |
+| `trustProxy`              | `TRUST_PROXY`: hop count of X-Forwarded-For-appending proxies in front of the API (see the comment above). Quoted string.                                                                                                                                                                                                                         | `1`                                                                                                                       |
+| `shutdownTimeoutMs`       | `SHUTDOWN_TIMEOUT_MS`: bound on the API's graceful shutdown after SIGTERM before it force-exits. Must stay well below `api.terminationGracePeriodSeconds`.                                                                                                                                                                                        | `10000`                                                                                                                   |
+| `logLevel`                | `LOG_LEVEL`: pino level (`debug`, `info`, `warn`, `error`)                                                                                                                                                                                                                                                                                        | `info`                                                                                                                    |
+| `logPretty`               | `LOG_PRETTY`: `true` for colourised pino-pretty output, `false` for JSON lines (what log collectors want)                                                                                                                                                                                                                                         | `false`                                                                                                                   |
+| `apiDocsEnabled`          | `API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs`. Set `false` to hide the route surface from unauthenticated callers.                                                                                                                                                                                                   | `true`                                                                                                                    |
+| `photoMaxDecodedBytes`    | `PHOTO_MAX_DECODED_BYTES`: maximum decoded size of a photo upload; the JSON body-parser limit is derived from it                                                                                                                                                                                                                                  | `8388608`                                                                                                                 |
+| `loginRateLimit.max`      | `LOGIN_RATE_LIMIT_MAX`: failed login attempts per window keyed on ip+username                                                                                                                                                                                                                                                                     | `10`                                                                                                                      |
+| `loginRateLimit.windowMs` | `LOGIN_RATE_LIMIT_WINDOW_MS`: window shared by both login rate limiters                                                                                                                                                                                                                                                                           | `900000`                                                                                                                  |
+| `loginRateLimit.ipMax`    | `LOGIN_RATE_LIMIT_IP_MAX`: failed attempts per window keyed on ip only (keep high for venue Wi-Fi behind one NAT)                                                                                                                                                                                                                                 | `200`                                                                                                                     |
+| `jwtSecret`               | `JWT_SECRET` (HS512 signing key). Ignored when `existingSecret` is set. When empty and `existingSecret` is unset, a random 48-character value is generated once and kept stable across upgrades.                                                                                                                                                  | `""`                                                                                                                      |
+| `initialUserPassword`     | `INITIAL_USER_PASSWORD`, the first admin user's password. Ignored when `existingSecret` is set. When empty and `existingSecret` is unset, a random 16-character value is generated once and kept stable across upgrades.                                                                                                                          | `""`                                                                                                                      |
+| `existingSecret`          | Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password`, plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database. | `""`                                                                                                                      |
+| `email.server`            | `EMAIL_SENDER_SERVER`: SMTP server hostname                                                                                                                                                                                                                                                                                                       | `smtp.example.com`                                                                                                        |
+| `email.port`              | `EMAIL_SENDER_PORT`: SMTP server port                                                                                                                                                                                                                                                                                                             | `587`                                                                                                                     |
+| `email.senderAddress`     | `EMAIL_SENDER_ADDRESS`: address checkout emails are sent from                                                                                                                                                                                                                                                                                     | `expo@example.com`                                                                                                        |
+| `email.senderName`        | `EMAIL_SENDER_FROM`: display name of the sender                                                                                                                                                                                                                                                                                                   | `Expo`                                                                                                                    |
+| `email.senderUsername`    | `EMAIL_SENDER_USERNAME`: SMTP username                                                                                                                                                                                                                                                                                                            | `expo@example.com`                                                                                                        |
+| `email.senderPassword`    | `EMAIL_SENDER_PASSWORD`: SMTP password, stored in the chart Secret. Ignored when `existingSecret` is set.                                                                                                                                                                                                                                         | `""`                                                                                                                      |
+| `email.bcc`               | `EMAIL_BCC`: address every checkout email is blind-copied to                                                                                                                                                                                                                                                                                      | `""`                                                                                                                      |
+| `email.subject`           | `EMAIL_SUBJECT`: subject of the checkout email                                                                                                                                                                                                                                                                                                    | `Checkout stand`                                                                                                          |
+| `checkout.text.fr`        | `CHECKOUT_TEXT_FR`: French text on the checkout email and PDF                                                                                                                                                                                                                                                                                     | `Si le stand est laissé sans déchets ni dégâts, la caution sera remboursée par virement bancaire endéans les 4 semaines.` |
+| `checkout.text.nl`        | `CHECKOUT_TEXT_NL`: Dutch text on the checkout email and PDF                                                                                                                                                                                                                                                                                      | `Indien wij noch afval noch schade vaststellen, wordt de waarborg per overschrijving binnen de 4 weken teruggestort.`     |
+| `checkout.text.en`        | `CHECKOUT_TEXT_EN`: English text on the checkout email and PDF                                                                                                                                                                                                                                                                                    | `If the stand is left without waste and damage, the guarantee will be returned to the bank account within 4 weeks.`       |
+| `checkout.entity`         | `CHECKOUT_ENTITY`: legal entity named in the checkout text                                                                                                                                                                                                                                                                                        | `Expo Operations`                                                                                                         |
+| `exposition.id`           | `EXPOSITION_ID`: id of the exposition seeded at first boot                                                                                                                                                                                                                                                                                        | `exposition`                                                                                                              |
+| `exposition.name`         | `EXPOSITION_NAME`: name of the exposition                                                                                                                                                                                                                                                                                                         | `Exposition`                                                                                                              |
+| `exposition.description`  | `EXPOSITION_DESCRIPTION`: description of the exposition                                                                                                                                                                                                                                                                                           | `Exposition`                                                                                                              |
+| `exposition.logo`         | `EXPOSITION_LOGO`: URL of the exposition logo                                                                                                                                                                                                                                                                                                     | `https://example.com/logo.png`                                                                                            |
+| `apm.enabled`             | `APM_ENABLED`: enable Elastic APM instrumentation of the API                                                                                                                                                                                                                                                                                      | `false`                                                                                                                   |
+| `apm.serviceName`         | `APM_SERVICE_NAME`: APM service name                                                                                                                                                                                                                                                                                                              | `expo-api`                                                                                                                |
+| `apm.serverScheme`        | `APM_SERVER_SCHEME`: APM server scheme (`http` or `https`)                                                                                                                                                                                                                                                                                        | `http`                                                                                                                    |
+| `apm.server`              | `APM_SERVER_NAME`: APM server hostname                                                                                                                                                                                                                                                                                                            | `localhost`                                                                                                               |
+| `apm.serverPort`          | `APM_SERVER_PORT`: APM server port                                                                                                                                                                                                                                                                                                                | `8200`                                                                                                                    |
 
 ### API parameters
 
-| Name                                     | Description                                                                           | Value                       |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------- |
-| `api.replicaCount`                       | Number of API replicas to deploy                                                      | `1`                         |
-| `api.image.repository`                   | Pod image repository                                                                  | `ghcr.io/befritco/expo-api` |
-| `api.image.tag`                          | Pod image tag (defaults to appVersion)                                                | `""`                        |
-| `api.image.pullPolicy`                   | Pod image pull policy                                                                 | `IfNotPresent`              |
-| `api.image.pullSecrets`                  | Pod image pull secrets                                                                | `[]`                        |
-| `api.service.type`                       | api service type                                                                      | `ClusterIP`                 |
-| `api.service.port`                       | api service port                                                                      | `9000`                      |
-| `api.service.annotations`                | api service annotations                                                               | `{}`                        |
-| `api.resources.limits`                   | The resources limits for the container                                                | `{}`                        |
-| `api.resources.requests`                 | The requested resources for the container                                             | `{}`                        |
-| `api.livenessProbe.enabled`              | Enable livenessProbe                                                                  | `true`                      |
-| `api.livenessProbe.failureThreshold`     | Failure threshold for livenessProbe                                                   | `3`                         |
-| `api.livenessProbe.initialDelaySeconds`  | Initial delay seconds for livenessProbe                                               | `10`                        |
-| `api.livenessProbe.periodSeconds`        | Period seconds for livenessProbe                                                      | `10`                        |
-| `api.livenessProbe.successThreshold`     | Success threshold for livenessProbe                                                   | `1`                         |
-| `api.livenessProbe.timeoutSeconds`       | Timeout seconds for livenessProbe                                                     | `5`                         |
-| `api.readinessProbe.enabled`             | Enable readinessProbe                                                                 | `true`                      |
-| `api.readinessProbe.initialDelaySeconds` | Initial delay seconds for readinessProbe                                              | `10`                        |
-| `api.readinessProbe.periodSeconds`       | Period seconds for readinessProbe                                                     | `10`                        |
-| `api.readinessProbe.timeoutSeconds`      | Timeout seconds for readinessProbe                                                    | `5`                         |
-| `api.readinessProbe.failureThreshold`    | Failure threshold for readinessProbe                                                  | `1`                         |
-| `api.readinessProbe.successThreshold`    | Success threshold for readinessProbe                                                  | `1`                         |
-| `api.startupProbe.enabled`               | Enable startupProbe                                                                   | `false`                     |
-| `api.startupProbe.initialDelaySeconds`   | Initial delay seconds for startupProbe                                                | `10`                        |
-| `api.startupProbe.periodSeconds`         | Period seconds for startupProbe                                                       | `10`                        |
-| `api.startupProbe.timeoutSeconds`        | Timeout seconds for startupProbe                                                      | `5`                         |
-| `api.startupProbe.failureThreshold`      | Failure threshold for startupProbe                                                    | `30`                        |
-| `api.startupProbe.successThreshold`      | Success threshold for startupProbe                                                    | `1`                         |
-| `api.podLabels`                          | Add extra labels to pod                                                               | `{}`                        |
-| `api.podAnnotations`                     | Add extra annotations to the pod                                                      | `{}`                        |
-| `api.nodeSelector`                       | Node labels selector for pod assignment                                               | `{}`                        |
-| `api.initContainers`                     | Add additional init containers to the pod                                             | `[]`                        |
-| `api.priorityClassName`                  | Pods' priorityClassName                                                               | `""`                        |
-| `api.terminationGracePeriodSeconds`      | In seconds, time given to the pod to terminate gracefully                             | `2`                         |
-| `api.affinity`                           | Affinity for front pod assignment                                                     | `{}`                        |
-| `api.tolerations`                        | Tolerations for pod assignment                                                        | `[]`                        |
-| `api.topologySpreadConstraints`          | Topology Spread Constraints for pod assignment                                        | `[]`                        |
-| `api.updateStrategy.type`                | Strategy to use to update Pods                                                        | `RollingUpdate`             |
-| `api.extraEnvVars`                       | Extra environment variable to pass to the running container                           | `[]`                        |
-| `api.extraEnvVarsCM`                     | Name of existing ConfigMap containing extra environment variables to mount in the pod | `""`                        |
-| `api.extraEnvVarsSecret`                 | Name of existing Secret containing extra environment variables to mount in the pod    | `""`                        |
-| `api.extraVolumeMounts`                  | Optionally specify extra list of additional volumeMounts for the pod                  | `[]`                        |
-| `api.extraVolumes`                       | Optionally specify extra list of additional volumes for the pod(s)                    | `[]`                        |
-| `api.persistence.enabled`                | Enable persistence using PVC                                                          | `true`                      |
-| `api.persistence.size`                   | Pod pvc size                                                                          | `10Gi`                      |
-| `api.persistence.storageClass`           | Pod pvc storage class                                                                 | `""`                        |
-| `api.persistence.accessModes`            | Pod pvc access modes                                                                  | `["ReadWriteOnce"]`         |
-| `api.persistence.annotations`            | Pod pvc annotations                                                                   | `{}`                        |
-| `api.persistence.labels`                 | Pod pvc labels                                                                        | `{}`                        |
-| `api.persistence.selector`               | Additional labels to match for the PVC                                                | `{}`                        |
-| `api.persistence.dataSource`             | Custom PVC data source                                                                | `{}`                        |
-| `api.persistence.existingClaim`          | Use a existing PVC which must be created manually before bound                        | `""`                        |
+| Name                                                    | Description                                                                                                                                                                                                                            | Value               |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `api.replicaCount`                                      | Number of API replicas. Must be `1`: there is no socket.io adapter, the photos/reports volumes are RWO and the migration ledger is not a lock. The chart refuses to render any other value unless `api.allowMultipleReplicas` is true. | `1`                 |
+| `api.allowMultipleReplicas`                             | Acknowledge the risks above and allow `api.replicaCount` > 1 (you need RWX volumes, a socket.io adapter and a manually gated migration rollout)                                                                                        | `false`             |
+| `api.image.registry`                                    | API image registry                                                                                                                                                                                                                     | `ghcr.io`           |
+| `api.image.repository`                                  | API image repository                                                                                                                                                                                                                   | `befritco/expo/api` |
+| `api.image.tag`                                         | API image tag, defaults to the chart's `appVersion`                                                                                                                                                                                    | `""`                |
+| `api.image.digest`                                      | API image digest (`sha256:...`), overrides `tag` when set                                                                                                                                                                              | `""`                |
+| `api.image.pullPolicy`                                  | API image pull policy                                                                                                                                                                                                                  | `IfNotPresent`      |
+| `api.image.pullSecrets`                                 | API image pull secrets, merged with `global.imagePullSecrets`                                                                                                                                                                          | `[]`                |
+| `api.containerPort`                                     | `API_PORT`, the port the API listens on and the container port                                                                                                                                                                         | `9000`              |
+| `api.healthPath`                                        | Path of the API health endpoint used by every probe and by `helm test`. `/healthz` answers 200 once RethinkDB does, 503 before.                                                                                                        | `/healthz`          |
+| `api.service.type`                                      | API Service type. The Service is named `<fullname>-api` and its port `http`.                                                                                                                                                           | `ClusterIP`         |
+| `api.service.port`                                      | API Service port. External HTTPRoutes/Ingresses target `<fullname>-api:<port>`.                                                                                                                                                        | `9000`              |
+| `api.service.annotations`                               | Annotations for the API Service                                                                                                                                                                                                        | `{}`                |
+| `api.updateStrategy.type`                               | Deployment strategy. Must stay `Recreate`: a rolling update would run two API versions at once, racing the boot migration.                                                                                                             | `Recreate`          |
+| `api.terminationGracePeriodSeconds`                     | Seconds between SIGTERM and SIGKILL; must exceed `shutdownTimeoutMs` (10s) with headroom                                                                                                                                               | `30`                |
+| `api.startupProbe.enabled`                              | Enable the startupProbe                                                                                                                                                                                                                | `true`              |
+| `api.startupProbe.initialDelaySeconds`                  | Initial delay seconds for the startupProbe                                                                                                                                                                                             | `5`                 |
+| `api.startupProbe.periodSeconds`                        | Period seconds for the startupProbe                                                                                                                                                                                                    | `5`                 |
+| `api.startupProbe.timeoutSeconds`                       | Timeout seconds for the startupProbe                                                                                                                                                                                                   | `3`                 |
+| `api.startupProbe.failureThreshold`                     | Failure threshold for the startupProbe                                                                                                                                                                                                 | `30`                |
+| `api.startupProbe.successThreshold`                     | Success threshold for the startupProbe                                                                                                                                                                                                 | `1`                 |
+| `api.readinessProbe.enabled`                            | Enable the readinessProbe                                                                                                                                                                                                              | `true`              |
+| `api.readinessProbe.initialDelaySeconds`                | Initial delay seconds for the readinessProbe                                                                                                                                                                                           | `0`                 |
+| `api.readinessProbe.periodSeconds`                      | Period seconds for the readinessProbe                                                                                                                                                                                                  | `10`                |
+| `api.readinessProbe.timeoutSeconds`                     | Timeout seconds for the readinessProbe                                                                                                                                                                                                 | `3`                 |
+| `api.readinessProbe.failureThreshold`                   | Failure threshold for the readinessProbe                                                                                                                                                                                               | `3`                 |
+| `api.readinessProbe.successThreshold`                   | Success threshold for the readinessProbe                                                                                                                                                                                               | `1`                 |
+| `api.livenessProbe.enabled`                             | Enable the livenessProbe                                                                                                                                                                                                               | `true`              |
+| `api.livenessProbe.initialDelaySeconds`                 | Initial delay seconds for the livenessProbe                                                                                                                                                                                            | `0`                 |
+| `api.livenessProbe.periodSeconds`                       | Period seconds for the livenessProbe                                                                                                                                                                                                   | `15`                |
+| `api.livenessProbe.timeoutSeconds`                      | Timeout seconds for the livenessProbe                                                                                                                                                                                                  | `3`                 |
+| `api.livenessProbe.failureThreshold`                    | Failure threshold for the livenessProbe                                                                                                                                                                                                | `3`                 |
+| `api.livenessProbe.successThreshold`                    | Success threshold for the livenessProbe                                                                                                                                                                                                | `1`                 |
+| `api.resources.requests.cpu`                            | Requested CPU for the API container                                                                                                                                                                                                    | `250m`              |
+| `api.resources.requests.memory`                         | Requested memory for the API container                                                                                                                                                                                                 | `512Mi`             |
+| `api.resources.limits.cpu`                              | CPU limit for the API container (PDF rendering spawns Chromium)                                                                                                                                                                        | `1`                 |
+| `api.resources.limits.memory`                           | Memory limit for the API container                                                                                                                                                                                                     | `1536Mi`            |
+| `api.podSecurityContext.runAsNonRoot`                   | Require the API pod to run as a non-root user                                                                                                                                                                                          | `true`              |
+| `api.podSecurityContext.runAsUser`                      | User ID of the API process (the image's `node` user)                                                                                                                                                                                   | `1000`              |
+| `api.podSecurityContext.runAsGroup`                     | Group ID of the API process                                                                                                                                                                                                            | `1000`              |
+| `api.podSecurityContext.fsGroup`                        | Group that owns the mounted photos/reports volumes                                                                                                                                                                                     | `1000`              |
+| `api.podSecurityContext.seccompProfile.type`            | Seccomp profile type                                                                                                                                                                                                                   | `RuntimeDefault`    |
+| `api.containerSecurityContext.allowPrivilegeEscalation` | Whether the API process can gain more privileges than its parent                                                                                                                                                                       | `false`             |
+| `api.containerSecurityContext.readOnlyRootFilesystem`   | Mount the container's root filesystem read-only (not supported by the Chromium-based PDF rendering; keep false)                                                                                                                        | `false`             |
+| `api.containerSecurityContext.capabilities.drop`        | Linux capabilities to drop                                                                                                                                                                                                             | `["ALL"]`           |
+| `api.containerSecurityContext.seccompProfile.type`      | Seccomp profile type                                                                                                                                                                                                                   | `RuntimeDefault`    |
+| `api.devShm.sizeLimit`                                  | Size of the in-memory emptyDir mounted at `/dev/shm`. Required by Chromium (PDF rendering); the container default of 64MB crashes renders under load.                                                                                  | `1Gi`               |
+| `api.podLabels`                                         | Extra labels for the API pod                                                                                                                                                                                                           | `{}`                |
+| `api.podAnnotations`                                    | Extra annotations for the API pod (a `checksum/config` annotation is always added)                                                                                                                                                     | `{}`                |
+| `api.nodeSelector`                                      | Node labels for API pod assignment                                                                                                                                                                                                     | `{}`                |
+| `api.tolerations`                                       | Tolerations for API pod assignment                                                                                                                                                                                                     | `[]`                |
+| `api.affinity`                                          | Affinity for API pod assignment                                                                                                                                                                                                        | `{}`                |
+| `api.topologySpreadConstraints`                         | Topology spread constraints for the API pod                                                                                                                                                                                            | `[]`                |
+| `api.priorityClassName`                                 | Priority class of the API pod                                                                                                                                                                                                          | `""`                |
+| `api.initContainers`                                    | Extra init containers for the API pod (templated)                                                                                                                                                                                      | `[]`                |
+| `api.extraEnvVars`                                      | Extra environment variables for the API container, as a list of `{name, value}` / `{name, valueFrom}` entries (templated)                                                                                                              | `[]`                |
+| `api.extraEnvVarsCM`                                    | Name of an existing ConfigMap whose keys are added to the API environment (`envFrom`)                                                                                                                                                  | `""`                |
+| `api.extraEnvVarsSecret`                                | Name of an existing Secret whose keys are added to the API environment (`envFrom`)                                                                                                                                                     | `""`                |
+| `api.extraVolumes`                                      | Extra volumes for the API pod (templated)                                                                                                                                                                                              | `[]`                |
+| `api.extraVolumeMounts`                                 | Extra volume mounts for the API container (templated)                                                                                                                                                                                  | `[]`                |
+| `api.persistence.resourcePolicy`                        | Value of the `helm.sh/resource-policy` annotation on both PVCs. `keep` (the default) leaves them behind on `helm uninstall` so photos survive an accidental uninstall; set it to `""` to have them deleted with the release.           | `keep`              |
+| `api.persistence.photos.enabled`                        | Create a PVC for `/expo/photos` (an emptyDir is used when false -- photos are lost on restart)                                                                                                                                         | `true`              |
+| `api.persistence.photos.size`                           | Size of the photos PVC                                                                                                                                                                                                                 | `10Gi`              |
+| `api.persistence.photos.storageClass`                   | StorageClass of the photos PVC. Empty uses `global.storageClass`, then the cluster default; `"-"` disables dynamic provisioning.                                                                                                       | `""`                |
+| `api.persistence.photos.accessModes`                    | Access modes of the photos PVC                                                                                                                                                                                                         | `["ReadWriteOnce"]` |
+| `api.persistence.photos.labels`                         | Extra labels for the photos PVC, e.g. a backup operator's repository label                                                                                                                                                             | `{}`                |
+| `api.persistence.photos.annotations`                    | Extra annotations for the photos PVC                                                                                                                                                                                                   | `{}`                |
+| `api.persistence.photos.existingClaim`                  | Name of an existing PVC to use instead of creating one (templated)                                                                                                                                                                     | `""`                |
+| `api.persistence.photos.dataSource`                     | Data source for the photos PVC, e.g. to restore from a VolumeSnapshot                                                                                                                                                                  | `{}`                |
+| `api.persistence.reports.enabled`                       | Create a PVC for `/expo/reports` (an emptyDir is used when false)                                                                                                                                                                      | `true`              |
+| `api.persistence.reports.size`                          | Size of the reports PVC                                                                                                                                                                                                                | `10Gi`              |
+| `api.persistence.reports.storageClass`                  | StorageClass of the reports PVC. Empty uses `global.storageClass`, then the cluster default; `"-"` disables dynamic provisioning.                                                                                                      | `""`                |
+| `api.persistence.reports.accessModes`                   | Access modes of the reports PVC                                                                                                                                                                                                        | `["ReadWriteOnce"]` |
+| `api.persistence.reports.labels`                        | Extra labels for the reports PVC                                                                                                                                                                                                       | `{}`                |
+| `api.persistence.reports.annotations`                   | Extra annotations for the reports PVC                                                                                                                                                                                                  | `{}`                |
+| `api.persistence.reports.existingClaim`                 | Name of an existing PVC to use instead of creating one, e.g. the 1.x StatefulSet's `reports-<release>-expo-manager-api-0` (templated)                                                                                                  | `""`                |
+| `api.persistence.reports.dataSource`                    | Data source for the reports PVC                                                                                                                                                                                                        | `{}`                |
 
+### Web parameters
 
-### Ingress parameters
+| Name                                     | Description                                                                                                                                            | Value               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `web.replicaCount`                       | Number of web (nginx) replicas                                                                                                                         | `1`                 |
+| `web.image.registry`                     | Web image registry                                                                                                                                     | `ghcr.io`           |
+| `web.image.repository`                   | Web image repository                                                                                                                                   | `befritco/expo/web` |
+| `web.image.tag`                          | Web image tag, defaults to the chart's `appVersion`                                                                                                    | `""`                |
+| `web.image.digest`                       | Web image digest (`sha256:...`), overrides `tag` when set                                                                                              | `""`                |
+| `web.image.pullPolicy`                   | Web image pull policy                                                                                                                                  | `IfNotPresent`      |
+| `web.image.pullSecrets`                  | Web image pull secrets, merged with `global.imagePullSecrets`                                                                                          | `[]`                |
+| `web.containerPort`                      | Port nginx listens on inside the container                                                                                                             | `80`                |
+| `web.healthPath`                         | Path of the web health endpoint used by the probes and `helm test`. `/nginx-health` is a static 200 independent of the API.                            | `/nginx-health`     |
+| `web.apiUpstream`                        | `API_UPSTREAM`, the `host:port` nginx proxies `/api/v1`, `/socket.io`, `/api-docs` and `/healthz` to. Defaults to `<fullname>-api:<api.service.port>`. | `""`                |
+| `web.dnsResolver`                        | `DNS_RESOLVER`, nginx's resolver. Auto-detected from the pod's /etc/resolv.conf when empty.                                                            | `""`                |
+| `web.service.type`                       | Web Service type. The Service is named `<fullname>-web` and its port `http`.                                                                           | `ClusterIP`         |
+| `web.service.port`                       | Web Service port. External HTTPRoutes/Ingresses target `<fullname>-web:<port>`.                                                                        | `80`                |
+| `web.service.annotations`                | Annotations for the web Service                                                                                                                        | `{}`                |
+| `web.updateStrategy.type`                | Deployment strategy for the web tier                                                                                                                   | `RollingUpdate`     |
+| `web.terminationGracePeriodSeconds`      | Seconds between SIGTERM and SIGKILL of the web pod                                                                                                     | `10`                |
+| `web.preStopSleepSeconds`                | Seconds the preStop hook sleeps so in-flight requests drain while endpoints propagate. `0` disables the hook.                                          | `5`                 |
+| `web.startupProbe.enabled`               | Enable the startupProbe                                                                                                                                | `false`             |
+| `web.startupProbe.initialDelaySeconds`   | Initial delay seconds for the startupProbe                                                                                                             | `0`                 |
+| `web.startupProbe.periodSeconds`         | Period seconds for the startupProbe                                                                                                                    | `5`                 |
+| `web.startupProbe.timeoutSeconds`        | Timeout seconds for the startupProbe                                                                                                                   | `3`                 |
+| `web.startupProbe.failureThreshold`      | Failure threshold for the startupProbe                                                                                                                 | `12`                |
+| `web.startupProbe.successThreshold`      | Success threshold for the startupProbe                                                                                                                 | `1`                 |
+| `web.readinessProbe.enabled`             | Enable the readinessProbe                                                                                                                              | `true`              |
+| `web.readinessProbe.initialDelaySeconds` | Initial delay seconds for the readinessProbe                                                                                                           | `2`                 |
+| `web.readinessProbe.periodSeconds`       | Period seconds for the readinessProbe                                                                                                                  | `10`                |
+| `web.readinessProbe.timeoutSeconds`      | Timeout seconds for the readinessProbe                                                                                                                 | `3`                 |
+| `web.readinessProbe.failureThreshold`    | Failure threshold for the readinessProbe                                                                                                               | `3`                 |
+| `web.readinessProbe.successThreshold`    | Success threshold for the readinessProbe                                                                                                               | `1`                 |
+| `web.livenessProbe.enabled`              | Enable the livenessProbe                                                                                                                               | `true`              |
+| `web.livenessProbe.initialDelaySeconds`  | Initial delay seconds for the livenessProbe                                                                                                            | `5`                 |
+| `web.livenessProbe.periodSeconds`        | Period seconds for the livenessProbe                                                                                                                   | `15`                |
+| `web.livenessProbe.timeoutSeconds`       | Timeout seconds for the livenessProbe                                                                                                                  | `3`                 |
+| `web.livenessProbe.failureThreshold`     | Failure threshold for the livenessProbe                                                                                                                | `3`                 |
+| `web.livenessProbe.successThreshold`     | Success threshold for the livenessProbe                                                                                                                | `1`                 |
+| `web.resources.requests.cpu`             | Requested CPU for the web container                                                                                                                    | `25m`               |
+| `web.resources.requests.memory`          | Requested memory for the web container                                                                                                                 | `32Mi`              |
+| `web.resources.limits.cpu`               | CPU limit for the web container                                                                                                                        | `200m`              |
+| `web.resources.limits.memory`            | Memory limit for the web container                                                                                                                     | `128Mi`             |
+| `web.podSecurityContext`                 | Pod-level securityContext for the web pod (see the comment above)                                                                                      | `{}`                |
+| `web.containerSecurityContext`           | Container-level securityContext for the web container (see the comment above)                                                                          | `{}`                |
+| `web.podLabels`                          | Extra labels for the web pod                                                                                                                           | `{}`                |
+| `web.podAnnotations`                     | Extra annotations for the web pod                                                                                                                      | `{}`                |
+| `web.nodeSelector`                       | Node labels for web pod assignment                                                                                                                     | `{}`                |
+| `web.tolerations`                        | Tolerations for web pod assignment                                                                                                                     | `[]`                |
+| `web.affinity`                           | Affinity for web pod assignment                                                                                                                        | `{}`                |
+| `web.topologySpreadConstraints`          | Topology spread constraints for the web pod                                                                                                            | `[]`                |
+| `web.priorityClassName`                  | Priority class of the web pod                                                                                                                          | `""`                |
+| `web.initContainers`                     | Extra init containers for the web pod (templated)                                                                                                      | `[]`                |
+| `web.extraEnvVars`                       | Extra environment variables for the web container (templated)                                                                                          | `[]`                |
+| `web.extraVolumes`                       | Extra volumes for the web pod (templated)                                                                                                              | `[]`                |
+| `web.extraVolumeMounts`                  | Extra volume mounts for the web container (templated)                                                                                                  | `[]`                |
 
-| Name                       | Description                                                                                                                      | Value                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `ingress.enabled`          | Enable ingress controller resource                                                                                               | `true`                   |
-| `ingress.ingressClassName` | IngressClass that will be be used to implement the Ingress (Kubernetes 1.18+)                                                    | `""`                     |
-| `ingress.pathType`         | Ingress path type                                                                                                                | `ImplementationSpecific` |
-| `ingress.apiVersion`       | Force Ingress API version (automatically detected if not set)                                                                    | `""`                     |
-| `ingress.annotations`      | Additional annotations for the Ingress resource. To enable certificate autogeneration, place here your cert-manager annotations. | `{}`                     |
-| `ingress.hosts`            | Ingress hostnames                                                                                                                | `[]`                     |
-| `ingress.tls`              | Ingress TLS configuration                                                                                                        | `[]`                     |
+### Routing parameters
 
+| Name                          | Description                                                                                                                                                                                                  | Value    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| `httpRoute.enabled`           | Render a Gateway API HTTPRoute (`/api/`, `/socket.io` -> api; `/` -> web)                                                                                                                                    | `false`  |
+| `httpRoute.parentRefs`        | HTTPRoute `parentRefs`, copied verbatim (e.g. `[{group: gateway.networking.k8s.io, kind: Gateway, name: gw, namespace: istio-system}]`). Required when enabled.                                              | `[]`     |
+| `httpRoute.hostnames`         | HTTPRoute hostnames                                                                                                                                                                                          | `[]`     |
+| `httpRoute.labels`            | Extra labels for the HTTPRoute (e.g. an external-dns opt-in label)                                                                                                                                           | `{}`     |
+| `httpRoute.annotations`       | Extra annotations for the HTTPRoute                                                                                                                                                                          | `{}`     |
+| `httpRoute.admin.enabled`     | Also render an HTTPRoute to the RethinkDB admin UI (`<release>-rethinkdb-admin:8080`). Requires `rethinkdb.httpAdmin.enabled`; the UI has no authentication of its own, so the parent Gateway must add some. | `false`  |
+| `httpRoute.admin.parentRefs`  | `parentRefs` of the admin HTTPRoute, defaults to `httpRoute.parentRefs`                                                                                                                                      | `[]`     |
+| `httpRoute.admin.hostnames`   | Hostnames of the admin HTTPRoute                                                                                                                                                                             | `[]`     |
+| `httpRoute.admin.labels`      | Extra labels for the admin HTTPRoute                                                                                                                                                                         | `{}`     |
+| `httpRoute.admin.annotations` | Extra annotations for the admin HTTPRoute                                                                                                                                                                    | `{}`     |
+| `ingress.enabled`             | Render an Ingress (`/api/`, `/socket.io` -> api; `/` -> web), all paths `pathType: Prefix`                                                                                                                   | `false`  |
+| `ingress.ingressClassName`    | IngressClass name                                                                                                                                                                                            | `""`     |
+| `ingress.annotations`         | Ingress annotations. Nothing is defaulted; add your controller's own (timeouts for socket.io long-polling, body size for photo uploads, cert-manager issuer...).                                             | `{}`     |
+| `ingress.hosts`               | Ingress hostnames (list of strings)                                                                                                                                                                          | `[]`     |
+| `ingress.tls`                 | Ingress TLS configuration, as a list of `{secretName, hosts}` entries                                                                                                                                        | `[]`     |
+| `ingress.pathType`            | `pathType` of every Ingress path                                                                                                                                                                             | `Prefix` |
+
+### Policy parameters
+
+| Name                         | Description                                                                                                                                                                                   | Value   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `networkPolicy.enabled`      | Create NetworkPolicies for the api and web pods                                                                                                                                               | `false` |
+| `networkPolicy.ingressFrom`  | List of NetworkPolicy `from` peers allowed to reach the web and api Services, e.g. the gateway namespace: `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-system}}}]` | `[]`    |
+| `networkPolicy.extraIngress` | Extra ingress rules for the api policy, verbatim                                                                                                                                              | `[]`    |
+| `networkPolicy.extraEgress`  | Extra egress rules for the api policy, verbatim (SMTP, the exposition logo URL, APM, an external RethinkDB...)                                                                                | `[]`    |
+| `pdb.enabled`                | Create a PodDisruptionBudget per component. With single replicas this only turns voluntary evictions into a blocked drain, so it defaults off.                                                | `false` |
+| `pdb.minAvailable`           | `minAvailable` of both PodDisruptionBudgets (takes precedence over `maxUnavailable` when set)                                                                                                 | `""`    |
+| `pdb.maxUnavailable`         | `maxUnavailable` of both PodDisruptionBudgets                                                                                                                                                 | `1`     |
 
 ### RethinkDB parameters
 
-| Name                                          | Description                                                  | Value       |
-| --------------------------------------------- | ------------------------------------------------------------ | ----------- |
-| `rethinkdb.enabled`                           | Enable RethinkDB                                             | `true`      |
-| `rethinkdb.cluster.rethinkCacheSize`          | RethinkDB Cache Size in MB                                   | `512`       |
-| `rethinkdb.cluster.storage`                   | RethinkDB Storage Size                                       | `40Gi`      |
-| `rethinkdb.cluster.replicas`                  | RethinkDB Replicas                                           | `3`         |
-| `rethinkdb.cluster.resources.limits.cpu`      | RethinkDB CPU Limit                                          | `500m`      |
-| `rethinkdb.cluster.resources.limits.memory`   | RethinkDB Memory Limit                                       | `2048Mi`    |
-| `rethinkdb.cluster.resources.requests.cpu`    | RethinkDB CPU Request                                        | `300m`      |
-| `rethinkdb.cluster.resources.requests.memory` | RethinkDB Memory Request                                     | `2048Mi`    |
-| `rethinkdb.proxy.replicas`                    | RethinkDB Proxy Replicas                                     | `1`         |
-| `rethinkdb.proxy.resources.limits.cpu`        | RethinkDB Proxy CPU Limit                                    | `100m`      |
-| `rethinkdb.proxy.resources.limits.memory`     | RethinkDB Proxy Memory Limit                                 | `1024Mi`    |
-| `rethinkdb.proxy.resources.requests.cpu`      | RethinkDB Proxy CPU Request                                  | `100m`      |
-| `rethinkdb.proxy.resources.requests.memory`   | RethinkDB Proxy Memory Request                               | `1024Mi`    |
-| `rethinkdb.rethinkdbPassword`                 | RethinkDB Admin Password - ignored if using `existingSecret` | `rethinkdb` |
-| `rethinkdb.existingSecret`                    | Use existing secret for rethinkDB password and certificates  | `""`        |
+| Name                                  | Description                                                                                                                                                                                                          | Value   |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `rethinkdb.enabled`                   | Deploy the bundled single-node RethinkDB StatefulSet. When false, `rethinkdb.externalHost` is required.                                                                                                              | `true`  |
+| `rethinkdb.externalHost`              | Hostname of an external RethinkDB (driver port 28015) used when `rethinkdb.enabled` is false. The password is read from `rethinkdb.existingSecret` if set, else from this chart's Secret (`rethinkdb-password` key). | `""`    |
+| `rethinkdb.existingSecret`            | Name of an existing Secret carrying the RethinkDB admin password under `rethinkdb-password`. Read by the subchart and by the API; typically the same Secret as `existingSecret`.                                     | `""`    |
+| `rethinkdb.rethinkdbPassword`         | RethinkDB admin password, ignored when `rethinkdb.existingSecret` is set. Empty means the subchart generates one (or, with `rethinkdb.enabled=false`, an empty password for the external database).                  | `""`    |
+| `rethinkdb.cacheSizeMB`               | RethinkDB `--cache-size` in MB, keep below `rethinkdb.resources.limits.memory`                                                                                                                                       | `512`   |
+| `rethinkdb.httpAdmin.enabled`         | Enable the RethinkDB admin UI and its `<release>-rethinkdb-admin` Service. Off by default -- the UI has no authentication; only expose it behind a gateway that adds some.                                           | `false` |
+| `rethinkdb.persistence.size`          | Size of the RethinkDB data PVC                                                                                                                                                                                       | `10Gi`  |
+| `rethinkdb.persistence.storageClass`  | StorageClass of the data PVC, empty uses `global.storageClass` then the cluster default                                                                                                                              | `""`    |
+| `rethinkdb.persistence.labels`        | Extra labels for the data PVC, e.g. a backup operator's repository label                                                                                                                                             | `{}`    |
+| `rethinkdb.persistence.annotations`   | Extra annotations for the data PVC                                                                                                                                                                                   | `{}`    |
+| `rethinkdb.resources.requests.cpu`    | Requested CPU for RethinkDB                                                                                                                                                                                          | `250m`  |
+| `rethinkdb.resources.requests.memory` | Requested memory for RethinkDB                                                                                                                                                                                       | `1Gi`   |
+| `rethinkdb.resources.limits.cpu`      | CPU limit for RethinkDB                                                                                                                                                                                              | `1`     |
+| `rethinkdb.resources.limits.memory`   | Memory limit for RethinkDB                                                                                                                                                                                           | `2Gi`   |
 
+### Test parameters
 
+| Name                     | Description                                             | Value             |
+| ------------------------ | ------------------------------------------------------- | ----------------- |
+| `tests.image.registry`   | Image registry for the `helm test` pod                  | `docker.io`       |
+| `tests.image.repository` | Image repository for the `helm test` pod (needs `curl`) | `curlimages/curl` |
+| `tests.image.tag`        | Image tag for the `helm test` pod                       | `8.16.0`          |
+| `tests.image.pullPolicy` | Image pull policy for the `helm test` pod               | `IfNotPresent`    |
+
+## Upgrading from 1.x
+
+Chart 2.0.0 is a rewrite; a `helm upgrade` from 1.x is **not** in-place. Plan a short
+maintenance window and follow the steps below.
+
+### Values that changed
+
+| 1.x | 2.x |
+| --- | --- |
+| `api.persistence.*` (one PVC) | `api.persistence.reports.*` (same volume) **plus** `api.persistence.photos.*` (new, `/expo/photos` -- photo bytes now live on disk, not in RethinkDB) |
+| `api.image.repository: befritco/expo-api` | `befritco/expo/api` (tag defaults to the chart `appVersion`) |
+| `web.image.repository: befritco/expo-web` | `befritco/expo/web` |
+| `rethinkdb.cluster.*`, `rethinkdb.proxy.*` | gone: single node. Use `rethinkdb.persistence.{size,storageClass,labels,annotations}`, `rethinkdb.resources.*`, `rethinkdb.cacheSizeMB`, `rethinkdb.httpAdmin.enabled` (admin UI, **off** by default) |
+| `rethinkdb.rethinkdbPassword`, `rethinkdb.existingSecret` | unchanged (`rethinkdb-password` key) |
+| `ingress.annotations` defaulted to nginx-ingress annotations, `ingress.pathType: ImplementationSpecific`, paths `/api/.*` and `/socket\.io.*` | no annotations defaulted, `pathType: Prefix`, paths `/api/`, `/socket.io`, `/` |
+| `debug` | removed (pino: `logLevel`, `logPretty`) |
+| `apm.enabled`, `apm.server` | unchanged, plus `apm.serviceName`, `apm.serverScheme`, `apm.serverPort` |
+| `api.updateStrategy.type: RollingUpdate` | `Recreate` (required; see above) |
+| `api.terminationGracePeriodSeconds: 2` | `30` (must exceed `shutdownTimeoutMs`) |
+| -- | new and **required**: `corsOrigins`. New: `trustProxy` (default `"1"`), `api.healthPath`, `web.healthPath`, `web.apiUpstream`, `httpRoute.*`, `networkPolicy.*`, `pdb.*` |
+
+`existingSecret` and its keys (`jwt-secret`, `initial-user-password`, `email-sender-password`,
+`rethinkdb-password`), `global.imagePullSecrets`, `email.*`, `checkout.*`, `exposition.*`,
+`serviceAccount.*` and the two Service names are unchanged, so an existing HTTPRoute keeps working.
+
+### RethinkDB data move
+
+1.x ran the `fastlorenzo/rethinkdb-helm-chart` fork: a multi-node cluster behind a proxy
+Deployment, on a custom image running as root. 2.x runs one official `rethinkdb` node as uid 1000
+on a new PVC. Neither the data layout nor the volume ownership carries over, so move the data
+with a dump/restore:
+
+1. Dump from the **old proxy** while 1.x is still running:
+   ```console
+   kubectl exec -n <ns> deploy/<release>-rethinkdb-proxy -- \
+     rethinkdb dump -c localhost:28015 --password-file <(echo -n "$RETHINKDB_PASSWORD") -f /tmp/expo.tar.gz
+   kubectl cp <ns>/<proxy-pod>:/tmp/expo.tar.gz ./expo.tar.gz
+   ```
+2. `helm upgrade` to 2.x with the reshaped values (the old StatefulSet/proxy are removed, the new
+   StatefulSet `<release>-rethinkdb-0` starts empty; the API will fail its startupProbe until the
+   data is back -- that is expected).
+3. Restore into the new node:
+   ```console
+   kubectl cp ./expo.tar.gz <ns>/<release>-rethinkdb-0:/tmp/expo.tar.gz
+   kubectl exec -n <ns> <release>-rethinkdb-0 -- \
+     rethinkdb restore /tmp/expo.tar.gz -c localhost:28015 --password-file <(echo -n "$RETHINKDB_PASSWORD") --force
+   ```
+4. Check table and row counts, then delete the old cluster's PVCs (`rethinkdb-data-<release>-rethinkdb-cluster-*`)
+   once you are satisfied.
+
+The API's boot migration then runs against the restored data. See the
+[rethinkdb chart README](../rethinkdb/README.md) for the same procedure from the subchart's side.
+
+### API volume rename
+
+1.x's API was a StatefulSet whose `volumeClaimTemplates` produced the PVC
+`reports-<release>-expo-manager-api-0`. 2.x's Deployment binds explicit PVCs named
+`<release>-expo-manager-api-reports` and `<release>-expo-manager-api-photos`. The old PVC is not
+deleted with the StatefulSet. To keep its contents, set
+`api.persistence.reports.existingClaim: reports-<release>-expo-manager-api-0`; otherwise a fresh
+PVC is created and the old one can be removed (rendered PDFs are regenerated on demand).
+
+### Root to uid 1000
+
+The 1.x images ran as root; 2.x runs the API as its `node` user (uid/gid 1000) and RethinkDB as
+uid/gid 1000 too. `fsGroup: 1000` fixes group ownership of a reused API volume on mount (block
+storage such as ceph-rbd); a filesystem-backed (NFS/CephFS) volume written by root needs a one-off
+`chown -R 1000:1000` first. The RethinkDB volume is always new (dump/restore above), so no chown
+is needed there.

@@ -1,0 +1,122 @@
+{{- if .Values.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "%s-web" (include "expo-manager.fullname" .) }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+  {{- with include "expo-manager.annotations" . }}
+  {{- . | nindent 2 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "expo-manager.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Istio ambient HBONE tunnel: all mesh mTLS traffic to this pod arrives on 15008.
+    - ports:
+        - protocol: TCP
+          port: 15008
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.web.containerPort }}
+      from:
+        # the chart's own `helm test` pod
+        - podSelector:
+            matchLabels:
+              {{- include "expo-manager.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: test
+        {{- with .Values.networkPolicy.ingressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 15008
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # nginx proxies /api/v1, /socket.io, /api-docs and /healthz to the API.
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.api.containerPort }}
+      to:
+        - podSelector:
+            matchLabels:
+              {{- include "expo-manager.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ printf "%s-api" (include "expo-manager.fullname" .) }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  {{- with include "expo-manager.annotations" . }}
+  {{- . | nindent 2 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "expo-manager.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 15008
+    - ports:
+        - protocol: TCP
+          port: {{ .Values.api.containerPort }}
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "expo-manager.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: web
+        # the chart's own `helm test` pod
+        - podSelector:
+            matchLabels:
+              {{- include "expo-manager.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: test
+        {{- with .Values.networkPolicy.ingressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    {{- with .Values.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 15008
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - ports:
+        - protocol: TCP
+          port: 28015
+      {{- if .Values.rethinkdb.enabled }}
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.rethinkdb.nameOverride | default "rethinkdb" }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      {{- end }}
+    {{- with .Values.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,39 @@
+# chart-testing values: renders the opt-in HTTPRoutes. kubeconform validates them against the
+# Gateway API CRD schemas; `ct install` applies them too, so the kind cluster must have the Gateway
+# API CRDs installed (standard channel) before `ct install` runs.
+global:
+  imagePullSecrets:
+    - befritco-docker-secret
+corsOrigins: "https://expo.example.com"
+api:
+  persistence:
+    photos:
+      enabled: false
+    reports:
+      enabled: false
+web:
+  image:
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
+  healthPath: /
+rethinkdb:
+  persistence:
+    size: 1Gi
+  httpAdmin:
+    enabled: true
+httpRoute:
+  enabled: true
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: example-gateway
+      namespace: gateway-system
+  hostnames:
+    - expo.example.com
+  labels:
+    external-dns.home.arpa/enabled: "true"
+  admin:
+    enabled: true
+    hostnames:
+      - expo-db.example.com

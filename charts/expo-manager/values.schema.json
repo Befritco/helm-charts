@@ -1,0 +1,1380 @@
+{
+    "title": "Chart Values",
+    "type": "object",
+    "properties": {
+        "global": {
+            "type": "object",
+            "properties": {
+                "imageRegistry": {
+                    "type": "string",
+                    "description": "Global container image registry, overrides `api.image.registry`, `web.image.registry` and the subchart's `image.registry`",
+                    "default": ""
+                },
+                "imagePullSecrets": {
+                    "type": "array",
+                    "description": "Global list of image pull secret names (e.g. `[befritco-docker-secret]`), merged with `api.image.pullSecrets` / `web.image.pullSecrets` and passed to the subchart",
+                    "default": [],
+                    "items": {}
+                },
+                "storageClass": {
+                    "type": "string",
+                    "description": "Global storageClass for every PVC, overridden per volume by `api.persistence.<volume>.storageClass` / `rethinkdb.persistence.storageClass`",
+                    "default": ""
+                }
+            }
+        },
+        "nameOverride": {
+            "type": "string",
+            "description": "String to partially override expo-manager.fullname (keeps the release name)",
+            "default": ""
+        },
+        "fullnameOverride": {
+            "type": "string",
+            "description": "String to fully override expo-manager.fullname. Service names become `<fullnameOverride>-api` and `<fullnameOverride>-web`.",
+            "default": ""
+        },
+        "commonLabels": {
+            "type": "object",
+            "description": "Labels added to every resource this chart creates (templated)",
+            "default": {}
+        },
+        "commonAnnotations": {
+            "type": "object",
+            "description": "Annotations added to every resource this chart creates (templated)",
+            "default": {}
+        },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Create a ServiceAccount for the api and web pods",
+                    "default": true
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Name of the ServiceAccount to use. Generated from the fullname when empty and `create` is true; `default` otherwise.",
+                    "default": ""
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Annotations for the ServiceAccount",
+                    "default": {}
+                },
+                "automountServiceAccountToken": {
+                    "type": "boolean",
+                    "description": "Mount the ServiceAccount token into the pods. Neither container talks to the Kubernetes API, so this stays off.",
+                    "default": false
+                }
+            }
+        },
+        "environment": {
+            "type": "string",
+            "description": "`NODE_ENV` of the API. `production` hides stack traces and makes the API refuse to start on a weak/empty `JWT_SECRET` or `INITIAL_USER_PASSWORD`.",
+            "default": "production"
+        },
+        "rethinkdbName": {
+            "type": "string",
+            "description": "`RETHINKDB_NAME`, the RethinkDB database name",
+            "default": "expo"
+        },
+        "corsOrigins": {
+            "type": "string",
+            "description": "`CORS_ORIGINS`: comma-separated allowlist of browser origins allowed to call the API (e.g. `https://expo.example.com`). Required -- the chart refuses to render with an empty value.",
+            "default": ""
+        },
+        "trustProxy": {
+            "type": "string",
+            "description": "`TRUST_PROXY`: hop count of X-Forwarded-For-appending proxies in front of the API (see the comment above). Quoted string.",
+            "default": "1"
+        },
+        "shutdownTimeoutMs": {
+            "type": "number",
+            "description": "`SHUTDOWN_TIMEOUT_MS`: bound on the API's graceful shutdown after SIGTERM before it force-exits. Must stay well below `api.terminationGracePeriodSeconds`.",
+            "default": 10000
+        },
+        "logLevel": {
+            "type": "string",
+            "description": "`LOG_LEVEL`: pino level (`debug`, `info`, `warn`, `error`)",
+            "default": "info"
+        },
+        "logPretty": {
+            "type": "boolean",
+            "description": "`LOG_PRETTY`: `true` for colourised pino-pretty output, `false` for JSON lines (what log collectors want)",
+            "default": false
+        },
+        "apiDocsEnabled": {
+            "type": "boolean",
+            "description": "`API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs`. Set `false` to hide the route surface from unauthenticated callers.",
+            "default": true
+        },
+        "photoMaxDecodedBytes": {
+            "type": "number",
+            "description": "`PHOTO_MAX_DECODED_BYTES`: maximum decoded size of a photo upload; the JSON body-parser limit is derived from it",
+            "default": 8388608
+        },
+        "loginRateLimit": {
+            "type": "object",
+            "properties": {
+                "max": {
+                    "type": "number",
+                    "description": "`LOGIN_RATE_LIMIT_MAX`: failed login attempts per window keyed on ip+username",
+                    "default": 10
+                },
+                "windowMs": {
+                    "type": "number",
+                    "description": "`LOGIN_RATE_LIMIT_WINDOW_MS`: window shared by both login rate limiters",
+                    "default": 900000
+                },
+                "ipMax": {
+                    "type": "number",
+                    "description": "`LOGIN_RATE_LIMIT_IP_MAX`: failed attempts per window keyed on ip only (keep high for venue Wi-Fi behind one NAT)",
+                    "default": 200
+                }
+            }
+        },
+        "jwtSecret": {
+            "type": "string",
+            "description": "`JWT_SECRET` (HS512 signing key). Ignored when `existingSecret` is set. When empty and `existingSecret` is unset, a random 48-character value is generated once and kept stable across upgrades.",
+            "default": ""
+        },
+        "initialUserPassword": {
+            "type": "string",
+            "description": "`INITIAL_USER_PASSWORD`, the first admin user's password. Ignored when `existingSecret` is set. When empty and `existingSecret` is unset, a random 16-character value is generated once and kept stable across upgrades.",
+            "default": ""
+        },
+        "existingSecret": {
+            "type": "string",
+            "description": "Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password`, plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database.",
+            "default": ""
+        },
+        "email": {
+            "type": "object",
+            "properties": {
+                "server": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_SERVER`: SMTP server hostname",
+                    "default": "smtp.example.com"
+                },
+                "port": {
+                    "type": "number",
+                    "description": "`EMAIL_SENDER_PORT`: SMTP server port",
+                    "default": 587
+                },
+                "senderAddress": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_ADDRESS`: address checkout emails are sent from",
+                    "default": "expo@example.com"
+                },
+                "senderName": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_FROM`: display name of the sender",
+                    "default": "Expo"
+                },
+                "senderUsername": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_USERNAME`: SMTP username",
+                    "default": "expo@example.com"
+                },
+                "senderPassword": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_PASSWORD`: SMTP password, stored in the chart Secret. Ignored when `existingSecret` is set.",
+                    "default": ""
+                },
+                "bcc": {
+                    "type": "string",
+                    "description": "`EMAIL_BCC`: address every checkout email is blind-copied to",
+                    "default": ""
+                },
+                "subject": {
+                    "type": "string",
+                    "description": "`EMAIL_SUBJECT`: subject of the checkout email",
+                    "default": "Checkout stand"
+                }
+            }
+        },
+        "checkout": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "object",
+                    "properties": {
+                        "fr": {
+                            "type": "string",
+                            "description": "`CHECKOUT_TEXT_FR`: French text on the checkout email and PDF",
+                            "default": "Si le stand est laissé sans déchets ni dégâts, la caution sera remboursée par virement bancaire endéans les 4 semaines."
+                        },
+                        "nl": {
+                            "type": "string",
+                            "description": "`CHECKOUT_TEXT_NL`: Dutch text on the checkout email and PDF",
+                            "default": "Indien wij noch afval noch schade vaststellen, wordt de waarborg per overschrijving binnen de 4 weken teruggestort."
+                        },
+                        "en": {
+                            "type": "string",
+                            "description": "`CHECKOUT_TEXT_EN`: English text on the checkout email and PDF",
+                            "default": "If the stand is left without waste and damage, the guarantee will be returned to the bank account within 4 weeks."
+                        }
+                    }
+                },
+                "entity": {
+                    "type": "string",
+                    "description": "`CHECKOUT_ENTITY`: legal entity named in the checkout text",
+                    "default": "Expo Operations"
+                }
+            }
+        },
+        "exposition": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "description": "`EXPOSITION_ID`: id of the exposition seeded at first boot",
+                    "default": "exposition"
+                },
+                "name": {
+                    "type": "string",
+                    "description": "`EXPOSITION_NAME`: name of the exposition",
+                    "default": "Exposition"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "`EXPOSITION_DESCRIPTION`: description of the exposition",
+                    "default": "Exposition"
+                },
+                "logo": {
+                    "type": "string",
+                    "description": "`EXPOSITION_LOGO`: URL of the exposition logo",
+                    "default": "https://example.com/logo.png"
+                }
+            }
+        },
+        "apm": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "`APM_ENABLED`: enable Elastic APM instrumentation of the API",
+                    "default": false
+                },
+                "serviceName": {
+                    "type": "string",
+                    "description": "`APM_SERVICE_NAME`: APM service name",
+                    "default": "expo-api"
+                },
+                "serverScheme": {
+                    "type": "string",
+                    "description": "`APM_SERVER_SCHEME`: APM server scheme (`http` or `https`)",
+                    "default": "http"
+                },
+                "server": {
+                    "type": "string",
+                    "description": "`APM_SERVER_NAME`: APM server hostname",
+                    "default": "localhost"
+                },
+                "serverPort": {
+                    "type": "number",
+                    "description": "`APM_SERVER_PORT`: APM server port",
+                    "default": 8200
+                }
+            }
+        },
+        "api": {
+            "type": "object",
+            "properties": {
+                "replicaCount": {
+                    "type": "number",
+                    "description": "Number of API replicas. Must be `1`: there is no socket.io adapter, the photos/reports volumes are RWO and the migration ledger is not a lock. The chart refuses to render any other value unless `api.allowMultipleReplicas` is true.",
+                    "default": 1
+                },
+                "allowMultipleReplicas": {
+                    "type": "boolean",
+                    "description": "Acknowledge the risks above and allow `api.replicaCount` > 1 (you need RWX volumes, a socket.io adapter and a manually gated migration rollout)",
+                    "default": false
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "registry": {
+                            "type": "string",
+                            "description": "API image registry",
+                            "default": "ghcr.io"
+                        },
+                        "repository": {
+                            "type": "string",
+                            "description": "API image repository",
+                            "default": "befritco/expo/api"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "API image tag, defaults to the chart's `appVersion`",
+                            "default": ""
+                        },
+                        "digest": {
+                            "type": "string",
+                            "description": "API image digest (`sha256:...`), overrides `tag` when set",
+                            "default": ""
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "API image pull policy",
+                            "default": "IfNotPresent"
+                        },
+                        "pullSecrets": {
+                            "type": "array",
+                            "description": "API image pull secrets, merged with `global.imagePullSecrets`",
+                            "default": [],
+                            "items": {}
+                        }
+                    }
+                },
+                "containerPort": {
+                    "type": "number",
+                    "description": "`API_PORT`, the port the API listens on and the container port",
+                    "default": 9000
+                },
+                "healthPath": {
+                    "type": "string",
+                    "description": "Path of the API health endpoint used by every probe and by `helm test`. `/healthz` answers 200 once RethinkDB does, 503 before.",
+                    "default": "/healthz"
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "API Service type. The Service is named `<fullname>-api` and its port `http`.",
+                            "default": "ClusterIP"
+                        },
+                        "port": {
+                            "type": "number",
+                            "description": "API Service port. External HTTPRoutes/Ingresses target `<fullname>-api:<port>`.",
+                            "default": 9000
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Annotations for the API Service",
+                            "default": {}
+                        }
+                    }
+                },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Deployment strategy. Must stay `Recreate`: a rolling update would run two API versions at once, racing the boot migration.",
+                            "default": "Recreate"
+                        }
+                    }
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Seconds between SIGTERM and SIGKILL; must exceed `shutdownTimeoutMs` (10s) with headroom",
+                    "default": 30
+                },
+                "startupProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the startupProbe",
+                            "default": true
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the startupProbe",
+                            "default": 5
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the startupProbe",
+                            "default": 5
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the startupProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the startupProbe",
+                            "default": 30
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the startupProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "readinessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the readinessProbe",
+                            "default": true
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the readinessProbe",
+                            "default": 0
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the readinessProbe",
+                            "default": 10
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the readinessProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the readinessProbe",
+                            "default": 3
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the readinessProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "livenessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the livenessProbe",
+                            "default": true
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the livenessProbe",
+                            "default": 0
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the livenessProbe",
+                            "default": 15
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the livenessProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the livenessProbe",
+                            "default": 3
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the livenessProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "requests": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "Requested CPU for the API container",
+                                    "default": "250m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Requested memory for the API container",
+                                    "default": "512Mi"
+                                }
+                            }
+                        },
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "CPU limit for the API container (PDF rendering spawns Chromium)",
+                                    "default": "1"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Memory limit for the API container",
+                                    "default": "1536Mi"
+                                }
+                            }
+                        }
+                    }
+                },
+                "podSecurityContext": {
+                    "type": "object",
+                    "properties": {
+                        "runAsNonRoot": {
+                            "type": "boolean",
+                            "description": "Require the API pod to run as a non-root user",
+                            "default": true
+                        },
+                        "runAsUser": {
+                            "type": "number",
+                            "description": "User ID of the API process (the image's `node` user)",
+                            "default": 1000
+                        },
+                        "runAsGroup": {
+                            "type": "number",
+                            "description": "Group ID of the API process",
+                            "default": 1000
+                        },
+                        "fsGroup": {
+                            "type": "number",
+                            "description": "Group that owns the mounted photos/reports volumes",
+                            "default": 1000
+                        },
+                        "seccompProfile": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Seccomp profile type",
+                                    "default": "RuntimeDefault"
+                                }
+                            }
+                        }
+                    }
+                },
+                "containerSecurityContext": {
+                    "type": "object",
+                    "properties": {
+                        "allowPrivilegeEscalation": {
+                            "type": "boolean",
+                            "description": "Whether the API process can gain more privileges than its parent",
+                            "default": false
+                        },
+                        "readOnlyRootFilesystem": {
+                            "type": "boolean",
+                            "description": "Mount the container's root filesystem read-only (not supported by the Chromium-based PDF rendering; keep false)",
+                            "default": false
+                        },
+                        "capabilities": {
+                            "type": "object",
+                            "properties": {
+                                "drop": {
+                                    "type": "array",
+                                    "description": "Linux capabilities to drop",
+                                    "default": [
+                                        "ALL"
+                                    ],
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "seccompProfile": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Seccomp profile type",
+                                    "default": "RuntimeDefault"
+                                }
+                            }
+                        }
+                    }
+                },
+                "devShm": {
+                    "type": "object",
+                    "properties": {
+                        "sizeLimit": {
+                            "type": "string",
+                            "description": "Size of the in-memory emptyDir mounted at `/dev/shm`. Required by Chromium (PDF rendering); the container default of 64MB crashes renders under load.",
+                            "default": "1Gi"
+                        }
+                    }
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Extra labels for the API pod",
+                    "default": {}
+                },
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Extra annotations for the API pod (a `checksum/config` annotation is always added)",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for API pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for API pod assignment",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity for API pod assignment",
+                    "default": {}
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints for the API pod",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class of the API pod",
+                    "default": ""
+                },
+                "initContainers": {
+                    "type": "array",
+                    "description": "Extra init containers for the API pod (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnvVars": {
+                    "type": "array",
+                    "description": "Extra environment variables for the API container, as a list of `{name, value}` / `{name, valueFrom}` entries (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnvVarsCM": {
+                    "type": "string",
+                    "description": "Name of an existing ConfigMap whose keys are added to the API environment (`envFrom`)",
+                    "default": ""
+                },
+                "extraEnvVarsSecret": {
+                    "type": "string",
+                    "description": "Name of an existing Secret whose keys are added to the API environment (`envFrom`)",
+                    "default": ""
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Extra volumes for the API pod (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Extra volume mounts for the API container (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "persistence": {
+                    "type": "object",
+                    "properties": {
+                        "resourcePolicy": {
+                            "type": "string",
+                            "description": "Value of the `helm.sh/resource-policy` annotation on both PVCs. `keep` (the default) leaves them behind on `helm uninstall` so photos survive an accidental uninstall; set it to `\"\"` to have them deleted with the release.",
+                            "default": "keep"
+                        },
+                        "photos": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "Create a PVC for `/expo/photos` (an emptyDir is used when false -- photos are lost on restart)",
+                                    "default": true
+                                },
+                                "size": {
+                                    "type": "string",
+                                    "description": "Size of the photos PVC",
+                                    "default": "10Gi"
+                                },
+                                "storageClass": {
+                                    "type": "string",
+                                    "description": "StorageClass of the photos PVC. Empty uses `global.storageClass`, then the cluster default; `\"-\"` disables dynamic provisioning.",
+                                    "default": ""
+                                },
+                                "accessModes": {
+                                    "type": "array",
+                                    "description": "Access modes of the photos PVC",
+                                    "default": [
+                                        "ReadWriteOnce"
+                                    ],
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "labels": {
+                                    "type": "object",
+                                    "description": "Extra labels for the photos PVC, e.g. a backup operator's repository label",
+                                    "default": {}
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "Extra annotations for the photos PVC",
+                                    "default": {}
+                                },
+                                "existingClaim": {
+                                    "type": "string",
+                                    "description": "Name of an existing PVC to use instead of creating one (templated)",
+                                    "default": ""
+                                },
+                                "dataSource": {
+                                    "type": "object",
+                                    "description": "Data source for the photos PVC, e.g. to restore from a VolumeSnapshot",
+                                    "default": {}
+                                }
+                            }
+                        },
+                        "reports": {
+                            "type": "object",
+                            "properties": {
+                                "enabled": {
+                                    "type": "boolean",
+                                    "description": "Create a PVC for `/expo/reports` (an emptyDir is used when false)",
+                                    "default": true
+                                },
+                                "size": {
+                                    "type": "string",
+                                    "description": "Size of the reports PVC",
+                                    "default": "10Gi"
+                                },
+                                "storageClass": {
+                                    "type": "string",
+                                    "description": "StorageClass of the reports PVC. Empty uses `global.storageClass`, then the cluster default; `\"-\"` disables dynamic provisioning.",
+                                    "default": ""
+                                },
+                                "accessModes": {
+                                    "type": "array",
+                                    "description": "Access modes of the reports PVC",
+                                    "default": [
+                                        "ReadWriteOnce"
+                                    ],
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                },
+                                "labels": {
+                                    "type": "object",
+                                    "description": "Extra labels for the reports PVC",
+                                    "default": {}
+                                },
+                                "annotations": {
+                                    "type": "object",
+                                    "description": "Extra annotations for the reports PVC",
+                                    "default": {}
+                                },
+                                "existingClaim": {
+                                    "type": "string",
+                                    "description": "Name of an existing PVC to use instead of creating one, e.g. the 1.x StatefulSet's `reports-<release>-expo-manager-api-0` (templated)",
+                                    "default": ""
+                                },
+                                "dataSource": {
+                                    "type": "object",
+                                    "description": "Data source for the reports PVC",
+                                    "default": {}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "web": {
+            "type": "object",
+            "properties": {
+                "replicaCount": {
+                    "type": "number",
+                    "description": "Number of web (nginx) replicas",
+                    "default": 1
+                },
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "registry": {
+                            "type": "string",
+                            "description": "Web image registry",
+                            "default": "ghcr.io"
+                        },
+                        "repository": {
+                            "type": "string",
+                            "description": "Web image repository",
+                            "default": "befritco/expo/web"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "Web image tag, defaults to the chart's `appVersion`",
+                            "default": ""
+                        },
+                        "digest": {
+                            "type": "string",
+                            "description": "Web image digest (`sha256:...`), overrides `tag` when set",
+                            "default": ""
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "Web image pull policy",
+                            "default": "IfNotPresent"
+                        },
+                        "pullSecrets": {
+                            "type": "array",
+                            "description": "Web image pull secrets, merged with `global.imagePullSecrets`",
+                            "default": [],
+                            "items": {}
+                        }
+                    }
+                },
+                "containerPort": {
+                    "type": "number",
+                    "description": "Port nginx listens on inside the container",
+                    "default": 80
+                },
+                "healthPath": {
+                    "type": "string",
+                    "description": "Path of the web health endpoint used by the probes and `helm test`. `/nginx-health` is a static 200 independent of the API.",
+                    "default": "/nginx-health"
+                },
+                "apiUpstream": {
+                    "type": "string",
+                    "description": "`API_UPSTREAM`, the `host:port` nginx proxies `/api/v1`, `/socket.io`, `/api-docs` and `/healthz` to. Defaults to `<fullname>-api:<api.service.port>`.",
+                    "default": ""
+                },
+                "dnsResolver": {
+                    "type": "string",
+                    "description": "`DNS_RESOLVER`, nginx's resolver. Auto-detected from the pod's /etc/resolv.conf when empty.",
+                    "default": ""
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Web Service type. The Service is named `<fullname>-web` and its port `http`.",
+                            "default": "ClusterIP"
+                        },
+                        "port": {
+                            "type": "number",
+                            "description": "Web Service port. External HTTPRoutes/Ingresses target `<fullname>-web:<port>`.",
+                            "default": 80
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Annotations for the web Service",
+                            "default": {}
+                        }
+                    }
+                },
+                "updateStrategy": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Deployment strategy for the web tier",
+                            "default": "RollingUpdate"
+                        }
+                    }
+                },
+                "terminationGracePeriodSeconds": {
+                    "type": "number",
+                    "description": "Seconds between SIGTERM and SIGKILL of the web pod",
+                    "default": 10
+                },
+                "preStopSleepSeconds": {
+                    "type": "number",
+                    "description": "Seconds the preStop hook sleeps so in-flight requests drain while endpoints propagate. `0` disables the hook.",
+                    "default": 5
+                },
+                "startupProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the startupProbe",
+                            "default": false
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the startupProbe",
+                            "default": 0
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the startupProbe",
+                            "default": 5
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the startupProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the startupProbe",
+                            "default": 12
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the startupProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "readinessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the readinessProbe",
+                            "default": true
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the readinessProbe",
+                            "default": 2
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the readinessProbe",
+                            "default": 10
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the readinessProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the readinessProbe",
+                            "default": 3
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the readinessProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "livenessProbe": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the livenessProbe",
+                            "default": true
+                        },
+                        "initialDelaySeconds": {
+                            "type": "number",
+                            "description": "Initial delay seconds for the livenessProbe",
+                            "default": 5
+                        },
+                        "periodSeconds": {
+                            "type": "number",
+                            "description": "Period seconds for the livenessProbe",
+                            "default": 15
+                        },
+                        "timeoutSeconds": {
+                            "type": "number",
+                            "description": "Timeout seconds for the livenessProbe",
+                            "default": 3
+                        },
+                        "failureThreshold": {
+                            "type": "number",
+                            "description": "Failure threshold for the livenessProbe",
+                            "default": 3
+                        },
+                        "successThreshold": {
+                            "type": "number",
+                            "description": "Success threshold for the livenessProbe",
+                            "default": 1
+                        }
+                    }
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "requests": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "Requested CPU for the web container",
+                                    "default": "25m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Requested memory for the web container",
+                                    "default": "32Mi"
+                                }
+                            }
+                        },
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "CPU limit for the web container",
+                                    "default": "200m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Memory limit for the web container",
+                                    "default": "128Mi"
+                                }
+                            }
+                        }
+                    }
+                },
+                "podSecurityContext": {
+                    "type": "object",
+                    "description": "Pod-level securityContext for the web pod (see the comment above)",
+                    "default": {}
+                },
+                "containerSecurityContext": {
+                    "type": "object",
+                    "description": "Container-level securityContext for the web container (see the comment above)",
+                    "default": {}
+                },
+                "podLabels": {
+                    "type": "object",
+                    "description": "Extra labels for the web pod",
+                    "default": {}
+                },
+                "podAnnotations": {
+                    "type": "object",
+                    "description": "Extra annotations for the web pod",
+                    "default": {}
+                },
+                "nodeSelector": {
+                    "type": "object",
+                    "description": "Node labels for web pod assignment",
+                    "default": {}
+                },
+                "tolerations": {
+                    "type": "array",
+                    "description": "Tolerations for web pod assignment",
+                    "default": [],
+                    "items": {}
+                },
+                "affinity": {
+                    "type": "object",
+                    "description": "Affinity for web pod assignment",
+                    "default": {}
+                },
+                "topologySpreadConstraints": {
+                    "type": "array",
+                    "description": "Topology spread constraints for the web pod",
+                    "default": [],
+                    "items": {}
+                },
+                "priorityClassName": {
+                    "type": "string",
+                    "description": "Priority class of the web pod",
+                    "default": ""
+                },
+                "initContainers": {
+                    "type": "array",
+                    "description": "Extra init containers for the web pod (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEnvVars": {
+                    "type": "array",
+                    "description": "Extra environment variables for the web container (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumes": {
+                    "type": "array",
+                    "description": "Extra volumes for the web pod (templated)",
+                    "default": [],
+                    "items": {}
+                },
+                "extraVolumeMounts": {
+                    "type": "array",
+                    "description": "Extra volume mounts for the web container (templated)",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "httpRoute": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Render a Gateway API HTTPRoute (`/api/`, `/socket.io` -> api; `/` -> web)",
+                    "default": false
+                },
+                "parentRefs": {
+                    "type": "array",
+                    "description": "HTTPRoute `parentRefs`, copied verbatim (e.g. `[{group: gateway.networking.k8s.io, kind: Gateway, name: gw, namespace: istio-system}]`). Required when enabled.",
+                    "default": [],
+                    "items": {}
+                },
+                "hostnames": {
+                    "type": "array",
+                    "description": "HTTPRoute hostnames",
+                    "default": [],
+                    "items": {}
+                },
+                "labels": {
+                    "type": "object",
+                    "description": "Extra labels for the HTTPRoute (e.g. an external-dns opt-in label)",
+                    "default": {}
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Extra annotations for the HTTPRoute",
+                    "default": {}
+                },
+                "admin": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Also render an HTTPRoute to the RethinkDB admin UI (`<release>-rethinkdb-admin:8080`). Requires `rethinkdb.httpAdmin.enabled`; the UI has no authentication of its own, so the parent Gateway must add some.",
+                            "default": false
+                        },
+                        "parentRefs": {
+                            "type": "array",
+                            "description": "`parentRefs` of the admin HTTPRoute, defaults to `httpRoute.parentRefs`",
+                            "default": [],
+                            "items": {}
+                        },
+                        "hostnames": {
+                            "type": "array",
+                            "description": "Hostnames of the admin HTTPRoute",
+                            "default": [],
+                            "items": {}
+                        },
+                        "labels": {
+                            "type": "object",
+                            "description": "Extra labels for the admin HTTPRoute",
+                            "default": {}
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Extra annotations for the admin HTTPRoute",
+                            "default": {}
+                        }
+                    }
+                }
+            }
+        },
+        "ingress": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Render an Ingress (`/api/`, `/socket.io` -> api; `/` -> web), all paths `pathType: Prefix`",
+                    "default": false
+                },
+                "ingressClassName": {
+                    "type": "string",
+                    "description": "IngressClass name",
+                    "default": ""
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Ingress annotations. Nothing is defaulted; add your controller's own (timeouts for socket.io long-polling, body size for photo uploads, cert-manager issuer...).",
+                    "default": {}
+                },
+                "hosts": {
+                    "type": "array",
+                    "description": "Ingress hostnames (list of strings)",
+                    "default": [],
+                    "items": {}
+                },
+                "tls": {
+                    "type": "array",
+                    "description": "Ingress TLS configuration, as a list of `{secretName, hosts}` entries",
+                    "default": [],
+                    "items": {}
+                },
+                "pathType": {
+                    "type": "string",
+                    "description": "`pathType` of every Ingress path",
+                    "default": "Prefix"
+                }
+            }
+        },
+        "networkPolicy": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create NetworkPolicies for the api and web pods",
+                    "default": false
+                },
+                "ingressFrom": {
+                    "type": "array",
+                    "description": "List of NetworkPolicy `from` peers allowed to reach the web and api Services, e.g. the gateway namespace: `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-system}}}]`",
+                    "default": [],
+                    "items": {}
+                },
+                "extraIngress": {
+                    "type": "array",
+                    "description": "Extra ingress rules for the api policy, verbatim",
+                    "default": [],
+                    "items": {}
+                },
+                "extraEgress": {
+                    "type": "array",
+                    "description": "Extra egress rules for the api policy, verbatim (SMTP, the exposition logo URL, APM, an external RethinkDB...)",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "pdb": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create a PodDisruptionBudget per component. With single replicas this only turns voluntary evictions into a blocked drain, so it defaults off.",
+                    "default": false
+                },
+                "minAvailable": {
+                    "type": "string",
+                    "description": "`minAvailable` of both PodDisruptionBudgets (takes precedence over `maxUnavailable` when set)",
+                    "default": ""
+                },
+                "maxUnavailable": {
+                    "type": "number",
+                    "description": "`maxUnavailable` of both PodDisruptionBudgets",
+                    "default": 1
+                }
+            }
+        },
+        "rethinkdb": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Deploy the bundled single-node RethinkDB StatefulSet. When false, `rethinkdb.externalHost` is required.",
+                    "default": true
+                },
+                "externalHost": {
+                    "type": "string",
+                    "description": "Hostname of an external RethinkDB (driver port 28015) used when `rethinkdb.enabled` is false. The password is read from `rethinkdb.existingSecret` if set, else from this chart's Secret (`rethinkdb-password` key).",
+                    "default": ""
+                },
+                "existingSecret": {
+                    "type": "string",
+                    "description": "Name of an existing Secret carrying the RethinkDB admin password under `rethinkdb-password`. Read by the subchart and by the API; typically the same Secret as `existingSecret`.",
+                    "default": ""
+                },
+                "rethinkdbPassword": {
+                    "type": "string",
+                    "description": "RethinkDB admin password, ignored when `rethinkdb.existingSecret` is set. Empty means the subchart generates one (or, with `rethinkdb.enabled=false`, an empty password for the external database).",
+                    "default": ""
+                },
+                "cacheSizeMB": {
+                    "type": "number",
+                    "description": "RethinkDB `--cache-size` in MB, keep below `rethinkdb.resources.limits.memory`",
+                    "default": 512
+                },
+                "httpAdmin": {
+                    "type": "object",
+                    "properties": {
+                        "enabled": {
+                            "type": "boolean",
+                            "description": "Enable the RethinkDB admin UI and its `<release>-rethinkdb-admin` Service. Off by default -- the UI has no authentication; only expose it behind a gateway that adds some.",
+                            "default": false
+                        }
+                    }
+                },
+                "persistence": {
+                    "type": "object",
+                    "properties": {
+                        "size": {
+                            "type": "string",
+                            "description": "Size of the RethinkDB data PVC",
+                            "default": "10Gi"
+                        },
+                        "storageClass": {
+                            "type": "string",
+                            "description": "StorageClass of the data PVC, empty uses `global.storageClass` then the cluster default",
+                            "default": ""
+                        },
+                        "labels": {
+                            "type": "object",
+                            "description": "Extra labels for the data PVC, e.g. a backup operator's repository label",
+                            "default": {}
+                        },
+                        "annotations": {
+                            "type": "object",
+                            "description": "Extra annotations for the data PVC",
+                            "default": {}
+                        }
+                    }
+                },
+                "resources": {
+                    "type": "object",
+                    "properties": {
+                        "requests": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "Requested CPU for RethinkDB",
+                                    "default": "250m"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Requested memory for RethinkDB",
+                                    "default": "1Gi"
+                                }
+                            }
+                        },
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "cpu": {
+                                    "type": "string",
+                                    "description": "CPU limit for RethinkDB",
+                                    "default": "1"
+                                },
+                                "memory": {
+                                    "type": "string",
+                                    "description": "Memory limit for RethinkDB",
+                                    "default": "2Gi"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "tests": {
+            "type": "object",
+            "properties": {
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "registry": {
+                            "type": "string",
+                            "description": "Image registry for the `helm test` pod",
+                            "default": "docker.io"
+                        },
+                        "repository": {
+                            "type": "string",
+                            "description": "Image repository for the `helm test` pod (needs `curl`)",
+                            "default": "curlimages/curl"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "Image tag for the `helm test` pod",
+                            "default": "8.16.0"
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "Image pull policy for the `helm test` pod",
+                            "default": "IfNotPresent"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

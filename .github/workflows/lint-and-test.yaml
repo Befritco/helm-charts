@@ -1,79 +1,141 @@
 ---
-name: Helm lint and test chart
+name: Lint and test charts
 
-# Controls when the workflow will run
 on:
   pull_request:
     branches:
       - main
     paths:
       - charts/**
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+      - ct.yaml
+      - .github/workflows/**
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
-  lint-and-test:
+  lint:
+    name: Lint, template and README/schema freshness
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: v3.10.0
+        uses: azure/setup-helm@v4
 
-      - name: Install dependencies
-        run: |
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
-
-      - uses: actions/setup-python@v4
+      - name: Install Python
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.9"
+          python-version: "3.x"
           check-latest: true
 
-      # - name: Run helm lint
-      #   run: helm lint --strict --values mailu/helm-lint-values.yaml mailu
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2
+
+      - name: Run ct lint
+        run: ct lint --config ct.yaml
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz" \
+            | tar -xz kubeconform
+          sudo install -m 0755 kubeconform /usr/local/bin/kubeconform
+          kubeconform -v
+
+      - name: helm template + kubeconform
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for chart in charts/*/; do
+            chart="${chart%/}"
+            helm dependency update "$chart"
+            for values in "$chart"/ci/*-values.yaml; do
+              echo "== $chart :: $values =="
+              helm template ci "$chart" -f "$values" \
+                --kube-version 1.33.0 \
+                --api-versions gateway.networking.k8s.io/v1 \
+                | kubeconform -strict -summary -ignore-missing-schemas \
+                    -kubernetes-version 1.33.0 \
+                    -schema-location default \
+                    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+            done
+          done
+
+      - name: Install readme-generator-for-helm
+        run: npm install -g "github:bitnami/readme-generator-for-helm#3.0.1"
+
+      - name: Check README and values.schema.json freshness
+        run: |
+          set -euo pipefail
+          for chart in charts/*/; do
+            chart="${chart%/}"
+            readme-generator -v "$chart/values.yaml" -r "$chart/README.md" -s "$chart/values.schema.json"
+          done
+          git diff --exit-code -- charts
+
+  install:
+    name: kind install test
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # `packages: read` lets the job's GITHUB_TOKEN pull the private expo api/web images into
+    # kind, once this repository has read access on those packages ("Manage Actions access").
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+          check-latest: true
 
       - name: Set up chart-testing
-        uses: helm/chart-testing-action@v2.3.1
+        uses: helm/chart-testing-action@v2
 
-      - name: Run chart-testing (list-changed)
+      - name: Run ct list-changed
         id: list-changed
         run: |
-          changed=$(ct list-changed --config ct.yaml --target-branch ${{ github.event.repository.default_branch }})
-          if [[ -n "$changed" ]]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
+          changed=$(ct list-changed --config ct.yaml)
+          if [ -n "$changed" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Run chart-testing (lint)
-        run: ct lint --config ct.yaml --target-branch ${{ github.event.repository.default_branch }} --check-version-increment=false
+      - name: Create kind cluster
+        if: steps.list-changed.outputs.changed == 'true'
+        uses: helm/kind-action@v1
 
-      # - name: Create kind cluster
-      #   if: steps.list-changed.outputs.changed == 'true'
-      #   uses: helm/kind-action@v1.4.0
-      #   with:
-      #     config: kind-cluster.yaml
+      - name: Install Gateway API CRDs
+        if: steps.list-changed.outputs.changed == 'true'
+        run: kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.3.0/standard-install.yaml
 
-      # - name: Install Calico
-      #   if: steps.list-changed.outputs.changed == 'true'
-      #   run: |
-      #     kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.24.5/manifests/calico.yaml
-      #     kubectl -n kube-system rollout status daemonset/calico-node --timeout=120s
-      #     kubectl -n kube-system rollout status deployment calico-kube-controllers --timeout=120s
+      - name: Create expo-ci namespace
+        if: steps.list-changed.outputs.changed == 'true'
+        run: kubectl create namespace expo-ci
 
-      # - name: Fix CoreDNS upstream resolver
-      #   if: steps.list-changed.outputs.changed == 'true'
-      #   run: |
-      #     kubectl -n kube-system get configmaps coredns -o yaml | sed 's/forward . \/etc\/resolv.conf/forward . 8.8.8.8:53/g' | kubectl apply -f -
-      #     kubectl -n kube-system rollout restart deployment coredns
-      #     kubectl -n kube-system rollout status deployment coredns --timeout=120s
+      - name: Create GHCR pull secret
+        if: steps.list-changed.outputs.changed == 'true'
+        env:
+          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          kubectl -n expo-ci create secret docker-registry befritco-docker-secret \
+            --docker-server=ghcr.io \
+            --docker-username="${{ github.actor }}" \
+            --docker-password="$GHCR_PULL_TOKEN"
 
-      # - name: Run chart-testing (install)
-      #   id: install
-      #   if: steps.list-changed.outputs.changed == 'true'
-      #   run: ct install --debug --config ct.yaml
+      - name: Run ct install
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct install --config ct.yaml

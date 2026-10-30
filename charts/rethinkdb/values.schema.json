@@ -1,0 +1,492 @@
+{
+    "title": "Chart Values",
+    "type": "object",
+    "properties": {
+        "global": {
+            "type": "object",
+            "properties": {
+                "imageRegistry": {
+                    "type": "string",
+                    "description": "Global container image registry, overrides `image.registry` for all images",
+                    "default": ""
+                },
+                "imagePullSecrets": {
+                    "type": "array",
+                    "description": "Global list of image pull secret names, appended to `image.pullSecrets`",
+                    "default": [],
+                    "items": {}
+                },
+                "storageClass": {
+                    "type": "string",
+                    "description": "Global storageClass for the data PVC, overrides `persistence.storageClass` unless that is also set",
+                    "default": ""
+                }
+            }
+        },
+        "nameOverride": {
+            "type": "string",
+            "description": "String to partially override rethinkdb.fullname",
+            "default": ""
+        },
+        "clusterDomain": {
+            "type": "string",
+            "description": "Kubernetes cluster domain, used to build the pods' stable DNS names (`<pod>.<fullname>-headless.<namespace>.svc.<clusterDomain>`)",
+            "default": "cluster.local"
+        },
+        "image": {
+            "type": "object",
+            "properties": {
+                "registry": {
+                    "type": "string",
+                    "description": "RethinkDB image registry",
+                    "default": "docker.io"
+                },
+                "repository": {
+                    "type": "string",
+                    "description": "RethinkDB image repository",
+                    "default": "library/rethinkdb"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "RethinkDB image tag",
+                    "default": "2.4.4-bookworm-slim"
+                },
+                "digest": {
+                    "type": "string",
+                    "description": "RethinkDB image digest, overrides `image.tag` when set",
+                    "default": ""
+                },
+                "pullPolicy": {
+                    "type": "string",
+                    "description": "RethinkDB image pull policy",
+                    "default": "IfNotPresent"
+                },
+                "pullSecrets": {
+                    "type": "array",
+                    "description": "RethinkDB image pull secrets, merged with `global.imagePullSecrets`",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "replicaCount": {
+            "type": "number",
+            "description": "Number of RethinkDB servers. `1` runs a single node; any higher value forms a cluster in which every pod joins every other pod (an odd count, typically 3, is recommended so table primaries can be elected by majority). Table replication is a per-table setting that the application (or you) must raise afterwards -- see README \"Replication\".",
+            "default": 1
+        },
+        "cluster": {
+            "type": "object",
+            "properties": {
+                "peerResolveTimeoutSeconds": {
+                    "type": "number",
+                    "description": "How long (seconds) a starting member waits for the DNS records of its lower-ordinal peers before starting without those `--join`s. RethinkDB exits when a `--join` hostname does not resolve; a peer that comes up later joins on its own.",
+                    "default": 60
+                }
+            }
+        },
+        "existingSecret": {
+            "type": "string",
+            "description": "Name of an existing Secret carrying the admin password under the `rethinkdb-password` key. Takes precedence over `rethinkdbPassword`.",
+            "default": ""
+        },
+        "rethinkdbPassword": {
+            "type": "string",
+            "description": "RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades; the generated Secret is kept on uninstall (like the data PVCs) so a reinstall under the same release name reuses it -- see README \"Reinstalling with retained volumes\".",
+            "default": ""
+        },
+        "cacheSizeMB": {
+            "type": "number",
+            "description": "RethinkDB `--cache-size` in MB. Keep comfortably below `resources.limits.memory` (RethinkDB's own bookkeeping and connection buffers also need headroom) -- the 512Mi default fits the 2Gi memory limit default.",
+            "default": 512
+        },
+        "httpAdmin": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the RethinkDB web admin UI and its ClusterIP service. The admin UI has no authentication of its own -- only enable this behind a gateway/route that adds one.",
+                    "default": false
+                },
+                "service": {
+                    "type": "object",
+                    "properties": {
+                        "annotations": {
+                            "type": "object",
+                            "description": "Annotations for the admin Service",
+                            "default": {}
+                        }
+                    }
+                }
+            }
+        },
+        "service": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "description": "Annotations for the driver Service",
+                    "default": {}
+                }
+            }
+        },
+        "podAnnotations": {
+            "type": "object",
+            "description": "Annotations for the RethinkDB pod",
+            "default": {}
+        },
+        "podLabels": {
+            "type": "object",
+            "description": "Extra labels for the RethinkDB pod",
+            "default": {}
+        },
+        "nodeSelector": {
+            "type": "object",
+            "description": "Node labels for pod assignment",
+            "default": {}
+        },
+        "tolerations": {
+            "type": "array",
+            "description": "Tolerations for pod assignment",
+            "default": [],
+            "items": {}
+        },
+        "affinity": {
+            "type": "object",
+            "description": "Affinity for pod assignment. When empty and `replicaCount` > 1, a preferred pod anti-affinity on `kubernetes.io/hostname` spreads the members across nodes.",
+            "default": {}
+        },
+        "topologySpreadConstraints": {
+            "type": "array",
+            "description": "Topology spread constraints for the pod",
+            "default": [],
+            "items": {}
+        },
+        "priorityClassName": {
+            "type": "string",
+            "description": "Priority class for the pod",
+            "default": ""
+        },
+        "podSecurityContext": {
+            "type": "object",
+            "properties": {
+                "runAsNonRoot": {
+                    "type": "boolean",
+                    "description": "Require the pod to run as a non-root user",
+                    "default": true
+                },
+                "runAsUser": {
+                    "type": "number",
+                    "description": "User ID to run the RethinkDB process as",
+                    "default": 1000
+                },
+                "runAsGroup": {
+                    "type": "number",
+                    "description": "Group ID to run the RethinkDB process as",
+                    "default": 1000
+                },
+                "fsGroup": {
+                    "type": "number",
+                    "description": "Group ID that owns the mounted data PVC",
+                    "default": 1000
+                },
+                "seccompProfile": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Seccomp profile type",
+                            "default": "RuntimeDefault"
+                        }
+                    }
+                }
+            }
+        },
+        "containerSecurityContext": {
+            "type": "object",
+            "properties": {
+                "allowPrivilegeEscalation": {
+                    "type": "boolean",
+                    "description": "Whether the RethinkDB process can gain more privileges than its parent",
+                    "default": false
+                },
+                "readOnlyRootFilesystem": {
+                    "type": "boolean",
+                    "description": "Mount the container's root filesystem as read-only",
+                    "default": true
+                },
+                "capabilities": {
+                    "type": "object",
+                    "properties": {
+                        "drop": {
+                            "type": "array",
+                            "description": "Linux capabilities to drop",
+                            "default": [
+                                "ALL"
+                            ],
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "seccompProfile": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "description": "Seccomp profile type",
+                            "default": "RuntimeDefault"
+                        }
+                    }
+                }
+            }
+        },
+        "startupProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the startupProbe",
+                    "default": true
+                },
+                "initialDelaySeconds": {
+                    "type": "number",
+                    "description": "Initial delay seconds for the startupProbe",
+                    "default": 0
+                },
+                "periodSeconds": {
+                    "type": "number",
+                    "description": "Period seconds for the startupProbe",
+                    "default": 5
+                },
+                "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Timeout seconds for the startupProbe",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "number",
+                    "description": "Failure threshold for the startupProbe (60 x 5s = 5 minutes)",
+                    "default": 60
+                },
+                "successThreshold": {
+                    "type": "number",
+                    "description": "Success threshold for the startupProbe",
+                    "default": 1
+                }
+            }
+        },
+        "readinessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the readinessProbe",
+                    "default": true
+                },
+                "initialDelaySeconds": {
+                    "type": "number",
+                    "description": "Initial delay seconds for the readinessProbe",
+                    "default": 0
+                },
+                "periodSeconds": {
+                    "type": "number",
+                    "description": "Period seconds for the readinessProbe",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Timeout seconds for the readinessProbe",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "number",
+                    "description": "Failure threshold for the readinessProbe",
+                    "default": 3
+                },
+                "successThreshold": {
+                    "type": "number",
+                    "description": "Success threshold for the readinessProbe",
+                    "default": 1
+                }
+            }
+        },
+        "livenessProbe": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable the livenessProbe",
+                    "default": true
+                },
+                "initialDelaySeconds": {
+                    "type": "number",
+                    "description": "Initial delay seconds for the livenessProbe",
+                    "default": 0
+                },
+                "periodSeconds": {
+                    "type": "number",
+                    "description": "Period seconds for the livenessProbe",
+                    "default": 10
+                },
+                "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Timeout seconds for the livenessProbe",
+                    "default": 1
+                },
+                "failureThreshold": {
+                    "type": "number",
+                    "description": "Failure threshold for the livenessProbe",
+                    "default": 3
+                },
+                "successThreshold": {
+                    "type": "number",
+                    "description": "Success threshold for the livenessProbe",
+                    "default": 1
+                }
+            }
+        },
+        "resources": {
+            "type": "object",
+            "properties": {
+                "requests": {
+                    "type": "object",
+                    "properties": {
+                        "cpu": {
+                            "type": "string",
+                            "description": "Requested CPU",
+                            "default": "250m"
+                        },
+                        "memory": {
+                            "type": "string",
+                            "description": "Requested memory",
+                            "default": "1Gi"
+                        }
+                    }
+                },
+                "limits": {
+                    "type": "object",
+                    "properties": {
+                        "cpu": {
+                            "type": "string",
+                            "description": "CPU limit",
+                            "default": "1"
+                        },
+                        "memory": {
+                            "type": "string",
+                            "description": "Memory limit",
+                            "default": "2Gi"
+                        }
+                    }
+                }
+            }
+        },
+        "persistence": {
+            "type": "object",
+            "properties": {
+                "size": {
+                    "type": "string",
+                    "description": "Size of the data PVC",
+                    "default": "10Gi"
+                },
+                "storageClass": {
+                    "type": "string",
+                    "description": "StorageClass for the data PVC. Empty uses the cluster default; `\"-\"` disables dynamic provisioning (`storageClassName: \"\"`). Falls back to `global.storageClass` when unset.",
+                    "default": ""
+                },
+                "accessModes": {
+                    "type": "array",
+                    "description": "Access modes for the data PVC",
+                    "default": [
+                        "ReadWriteOnce"
+                    ],
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labels": {
+                    "type": "object",
+                    "description": "Extra labels for the data PVC",
+                    "default": {}
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Extra annotations for the data PVC, e.g. a backup operator's repository label",
+                    "default": {}
+                },
+                "dataSource": {
+                    "type": "object",
+                    "description": "Data source for the data PVC, e.g. to restore from a VolumeSnapshot",
+                    "default": {}
+                }
+            }
+        },
+        "pdb": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability.",
+                    "default": true
+                },
+                "maxUnavailable": {
+                    "type": "number",
+                    "description": "Max unavailable pods allowed by the PodDisruptionBudget",
+                    "default": 1
+                }
+            }
+        },
+        "networkPolicy": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Create a NetworkPolicy restricting traffic to the pod",
+                    "default": false
+                },
+                "allowedPodSelectors": {
+                    "type": "array",
+                    "description": "List of `matchLabels` maps allowed to reach the driver port (28015)",
+                    "default": [],
+                    "items": {}
+                },
+                "allowedNamespaceSelectors": {
+                    "type": "array",
+                    "description": "List of namespace `matchLabels` maps allowed to reach the driver port (28015)",
+                    "default": [],
+                    "items": {}
+                }
+            }
+        },
+        "tests": {
+            "type": "object",
+            "properties": {
+                "image": {
+                    "type": "object",
+                    "properties": {
+                        "registry": {
+                            "type": "string",
+                            "description": "Image registry for the `helm test` connection-check pod",
+                            "default": "docker.io"
+                        },
+                        "repository": {
+                            "type": "string",
+                            "description": "Image repository for the `helm test` connection-check pod",
+                            "default": "busybox"
+                        },
+                        "tag": {
+                            "type": "string",
+                            "description": "Image tag for the `helm test` connection-check pod",
+                            "default": "1.36"
+                        },
+                        "pullPolicy": {
+                            "type": "string",
+                            "description": "Image pull policy for the `helm test` connection-check pod",
+                            "default": "IfNotPresent"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

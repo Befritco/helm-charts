@@ -1,0 +1,211 @@
+# Default values for rethinkdb.
+# One RethinkDB node by default; replicaCount > 1 forms a cluster (see README "Clustering and HA").
+
+## @section Global parameters
+## @param global.imageRegistry Global container image registry, overrides `image.registry` for all images
+## @param global.imagePullSecrets Global list of image pull secret names, appended to `image.pullSecrets`
+## @param global.storageClass Global storageClass for the data PVC, overrides `persistence.storageClass` unless that is also set
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+## @section Common parameters
+
+## @param nameOverride String to partially override rethinkdb.fullname
+nameOverride: ""
+## @param clusterDomain Kubernetes cluster domain, used to build the pods' stable DNS names (`<pod>.<fullname>-headless.<namespace>.svc.<clusterDomain>`)
+clusterDomain: cluster.local
+
+## @section RethinkDB image parameters
+
+## @param image.registry RethinkDB image registry
+## @param image.repository RethinkDB image repository
+## @param image.tag RethinkDB image tag
+## @param image.digest RethinkDB image digest, overrides `image.tag` when set
+## @param image.pullPolicy RethinkDB image pull policy
+## @param image.pullSecrets RethinkDB image pull secrets, merged with `global.imagePullSecrets`
+image:
+  registry: docker.io
+  repository: library/rethinkdb
+  tag: "2.4.4-bookworm-slim"
+  digest: ""
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+## @section RethinkDB parameters
+
+## @param replicaCount Number of RethinkDB servers. `1` runs a single node; any higher value forms a cluster in which every pod joins every other pod (an odd count, typically 3, is recommended so table primaries can be elected by majority). Table replication is a per-table setting that the application (or you) must raise afterwards -- see README "Replication".
+replicaCount: 1
+
+## @param cluster.peerResolveTimeoutSeconds How long (seconds) a starting member waits for the DNS records of its lower-ordinal peers before starting without those `--join`s. RethinkDB exits when a `--join` hostname does not resolve; a peer that comes up later joins on its own.
+cluster:
+  peerResolveTimeoutSeconds: 60
+
+## @param existingSecret Name of an existing Secret carrying the admin password under the `rethinkdb-password` key. Takes precedence over `rethinkdbPassword`.
+existingSecret: ""
+## @param rethinkdbPassword RethinkDB admin password, ignored when `existingSecret` is set. When empty, a random password is generated once and kept stable across upgrades; the generated Secret is kept on uninstall (like the data PVCs) so a reinstall under the same release name reuses it -- see README "Reinstalling with retained volumes".
+rethinkdbPassword: ""
+
+## @param cacheSizeMB RethinkDB `--cache-size` in MB. Keep comfortably below `resources.limits.memory` (RethinkDB's own bookkeeping and connection buffers also need headroom) -- the 512Mi default fits the 2Gi memory limit default.
+cacheSizeMB: 512
+
+## @param httpAdmin.enabled Enable the RethinkDB web admin UI and its ClusterIP service. The admin UI has no authentication of its own -- only enable this behind a gateway/route that adds one.
+## @param httpAdmin.service.annotations Annotations for the admin Service
+httpAdmin:
+  enabled: false
+  service:
+    annotations: {}
+
+## @param service.annotations Annotations for the driver Service
+service:
+  annotations: {}
+
+## @section StatefulSet parameters
+
+## @param podAnnotations Annotations for the RethinkDB pod
+podAnnotations: {}
+## @param podLabels Extra labels for the RethinkDB pod
+podLabels: {}
+## @param nodeSelector Node labels for pod assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pod assignment
+tolerations: []
+## @param affinity Affinity for pod assignment. When empty and `replicaCount` > 1, a preferred pod anti-affinity on `kubernetes.io/hostname` spreads the members across nodes.
+affinity: {}
+## @param topologySpreadConstraints Topology spread constraints for the pod
+topologySpreadConstraints: []
+## @param priorityClassName Priority class for the pod
+priorityClassName: ""
+
+## Pod-level securityContext.
+## @param podSecurityContext.runAsNonRoot Require the pod to run as a non-root user
+## @param podSecurityContext.runAsUser User ID to run the RethinkDB process as
+## @param podSecurityContext.runAsGroup Group ID to run the RethinkDB process as
+## @param podSecurityContext.fsGroup Group ID that owns the mounted data PVC
+## @param podSecurityContext.seccompProfile.type Seccomp profile type
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+## Container-level securityContext. `readOnlyRootFilesystem: true` relies on the `/tmp` emptyDir
+## this chart mounts and on `/data` being a writable volume.
+## @param containerSecurityContext.allowPrivilegeEscalation Whether the RethinkDB process can gain more privileges than its parent
+## @param containerSecurityContext.readOnlyRootFilesystem Mount the container's root filesystem as read-only
+## @param containerSecurityContext.capabilities.drop Linux capabilities to drop
+## @param containerSecurityContext.seccompProfile.type Seccomp profile type
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+## RethinkDB opens its driver port only once startup (including any index rebuild) has finished,
+## so startupProbe is deliberately generous and gates readiness/liveness.
+## @param startupProbe.enabled Enable the startupProbe
+## @param startupProbe.initialDelaySeconds Initial delay seconds for the startupProbe
+## @param startupProbe.periodSeconds Period seconds for the startupProbe
+## @param startupProbe.timeoutSeconds Timeout seconds for the startupProbe
+## @param startupProbe.failureThreshold Failure threshold for the startupProbe (60 x 5s = 5 minutes)
+## @param startupProbe.successThreshold Success threshold for the startupProbe
+startupProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 60
+  successThreshold: 1
+
+## @param readinessProbe.enabled Enable the readinessProbe
+## @param readinessProbe.initialDelaySeconds Initial delay seconds for the readinessProbe
+## @param readinessProbe.periodSeconds Period seconds for the readinessProbe
+## @param readinessProbe.timeoutSeconds Timeout seconds for the readinessProbe
+## @param readinessProbe.failureThreshold Failure threshold for the readinessProbe
+## @param readinessProbe.successThreshold Success threshold for the readinessProbe
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+
+## @param livenessProbe.enabled Enable the livenessProbe
+## @param livenessProbe.initialDelaySeconds Initial delay seconds for the livenessProbe
+## @param livenessProbe.periodSeconds Period seconds for the livenessProbe
+## @param livenessProbe.timeoutSeconds Timeout seconds for the livenessProbe
+## @param livenessProbe.failureThreshold Failure threshold for the livenessProbe
+## @param livenessProbe.successThreshold Success threshold for the livenessProbe
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+
+## @param resources.requests.cpu Requested CPU
+## @param resources.requests.memory Requested memory
+## @param resources.limits.cpu CPU limit
+## @param resources.limits.memory Memory limit
+resources:
+  requests:
+    cpu: 250m
+    memory: 1Gi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+## @section Persistence parameters
+
+## @param persistence.size Size of the data PVC
+## @param persistence.storageClass StorageClass for the data PVC. Empty uses the cluster default; `"-"` disables dynamic provisioning (`storageClassName: ""`). Falls back to `global.storageClass` when unset.
+## @param persistence.accessModes Access modes for the data PVC
+## @param persistence.labels Extra labels for the data PVC
+## @param persistence.annotations Extra annotations for the data PVC, e.g. a backup operator's repository label
+## @param persistence.dataSource Data source for the data PVC, e.g. to restore from a VolumeSnapshot
+persistence:
+  size: 10Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  labels: {}
+  annotations: {}
+  dataSource: {}
+
+## @section Other parameters
+
+## @param pdb.enabled Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability.
+## @param pdb.maxUnavailable Max unavailable pods allowed by the PodDisruptionBudget
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+## NetworkPolicy is off by default so the chart works unmodified outside a mesh. On an Istio
+## ambient mesh, port 15008 is the HBONE tunnel port used for all mTLS'd traffic to/from the pod.
+## Cluster traffic (29015) between the chart's own pods is always allowed.
+## @param networkPolicy.enabled Create a NetworkPolicy restricting traffic to the pod
+## @param networkPolicy.allowedPodSelectors List of `matchLabels` maps allowed to reach the driver port (28015)
+## @param networkPolicy.allowedNamespaceSelectors List of namespace `matchLabels` maps allowed to reach the driver port (28015)
+networkPolicy:
+  enabled: false
+  allowedPodSelectors: []
+  allowedNamespaceSelectors: []
+
+## @param tests.image.registry Image registry for the `helm test` connection-check pod
+## @param tests.image.repository Image repository for the `helm test` connection-check pod
+## @param tests.image.tag Image tag for the `helm test` connection-check pod
+## @param tests.image.pullPolicy Image pull policy for the `helm test` connection-check pod
+tests:
+  image:
+    registry: docker.io
+    repository: busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent

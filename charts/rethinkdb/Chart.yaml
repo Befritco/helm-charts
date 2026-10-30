@@ -1,0 +1,17 @@
+apiVersion: v2
+name: rethinkdb
+description: RethinkDB for the Expo platform, single node or cluster
+type: application
+version: 1.0.0
+appVersion: "2.4.4"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/Befritco/helm-charts
+sources:
+  - https://github.com/Befritco/helm-charts
+  - https://github.com/rethinkdb/rethinkdb
+keywords:
+  - rethinkdb
+  - database
+  - nosql
+maintainers:
+  - name: fastlorenzo

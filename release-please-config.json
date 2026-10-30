@@ -1,13 +1,24 @@
 {
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-v-in-tag": false,
+  "tag-separator": "-",
+  "include-component-in-tag": true,
+  "separate-pull-requests": false,
+  "bump-minor-pre-major": false,
+  "bump-patch-for-minor-pre-major": false,
   "packages": {
-    "charts/expo-manager": {
-      "package-name": "expo-manager",
-      "changelog-path": "CHANGELOG.md",
+    "charts/rethinkdb": {
       "release-type": "helm",
-      "bump-minor-pre-major": false,
-      "bump-patch-for-minor-pre-major": false,
-      "include-v-in-tag": false
+      "component": "rethinkdb",
+      "package-name": "rethinkdb",
+      "changelog-path": "CHANGELOG.md",
+      "initial-version": "1.0.0"
+    },
+    "charts/expo-manager": {
+      "release-type": "helm",
+      "component": "expo-manager",
+      "package-name": "expo-manager",
+      "changelog-path": "CHANGELOG.md"
     }
-  },
-  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+  }
 }

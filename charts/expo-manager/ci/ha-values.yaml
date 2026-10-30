@@ -1,0 +1,48 @@
+# chart-testing values for the kind install test (lint-and-test.yaml), exercising the clustered
+# database: same as ci/kind-values.yaml, but with a 3-member RethinkDB cluster (small resources,
+# matching charts/rethinkdb/ci/cluster-values.yaml) instead of the single-node default.
+# The private API image is pulled with the `befritco-docker-secret` the workflow creates from
+# GHCR_PULL_TOKEN in the expo-ci namespace.
+global:
+  imagePullSecrets:
+    - befritco-docker-secret
+
+corsOrigins: "http://localhost"
+trustProxy: "1"
+
+api:
+  image:
+    registry: ghcr.io
+    repository: befritco/expo/api
+    tag: "2.0.0"
+  persistence:
+    photos:
+      enabled: false
+    reports:
+      enabled: false
+
+# TEMPORARY: ghcr.io/befritco/expo/web is not published yet. Until it is, the web tier runs a
+# stock nginx that answers 200 on `/` so the probes and `helm test` still exercise the
+# Deployment/Service wiring. Drop this whole `web:` block (restoring the chart defaults, including
+# `healthPath: /nginx-health`) once the image exists.
+web:
+  image:
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
+  healthPath: /
+
+# 3-member RethinkDB cluster on a kind node: small PVC and resources (see
+# charts/rethinkdb/ci/cluster-values.yaml).
+rethinkdb:
+  replicaCount: 3
+  persistence:
+    size: 1Gi
+  cacheSizeMB: 128
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

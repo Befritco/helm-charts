@@ -6,83 +6,111 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       paths_released: ${{ steps.release.outputs.paths_released }}
-      releases_info: ${{ toJSON(steps.release.outputs) }}
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: google-github-actions/release-please-action@v3
+      - name: Run release-please
         id: release
+        uses: googleapis/release-please-action@v4
         with:
-          # path: charts
-          # release-type: helm
-          # package-name: mailu
-          # monorepo-tags: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # changelog-notes-type: github
-          # prerelease: true
-          include-v-in-tag: false
-          tag-separator: "-"
-          command: manifest
-          # Only check the last 50 commits to avoid rate limiting
-          commit-search-depth: 50
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - run: echo $JSON
-        name: Release Please Output Info
+      - name: Build the publish matrix
+        id: set-matrix
         env:
-          JSON: ${{ toJSON(steps.release.outputs) }}
+          RELEASE_OUTPUTS: ${{ toJSON(steps.release.outputs) }}
+        run: |
+          echo "$RELEASE_OUTPUTS" > /tmp/release-outputs.json
+          matrix=$(jq -c '
+            (.paths_released // "[]" | fromjson) as $paths
+            | [
+                $paths[] as $path
+                | {
+                    path: $path,
+                    chart: ($path | split("/")[1]),
+                    version: .[$path + "--version"],
+                    tag: .[$path + "--tag_name"]
+                  }
+              ]
+          ' /tmp/release-outputs.json)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-  packages-calculate:
+  publish:
+    name: Publish ${{ matrix.chart }}
+    needs: release-please
     if: needs.release-please.outputs.paths_released != '[]'
-    name: Packages Calculate
-    needs:
-      - release-please
-    runs-on: ubuntu-latest
-    outputs:
-      result: ${{ steps.interrogate.outputs.result }}
-    steps:
-      - uses: actions/checkout@v3
-
-      - id: interrogate
-        uses: actions/github-script@v4
-        env:
-          PATHS_RELEASED: ${{ needs.release-please.outputs.paths_released }}
-          RELEASES_INFO: ${{ needs.release-please.outputs.releases_info }}
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { PATHS_RELEASED, RELEASES_INFO } = process.env
-            const releases = JSON.parse(PATHS_RELEASED)
-            const releasesInfo = JSON.parse(RELEASES_INFO)
-            const result = []
-            for(const release of releases){
-              result.push(
-                {
-                  name: release.split('/')[1],
-                  version: releasesInfo[`${release}--version`]
-                }
-              )
-            }
-            return result
-
-  packages-publish:
-    needs:
-      - packages-calculate
-    name: Charts Packages Publish
-    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
     strategy:
       matrix:
-        package: ${{ fromJson(needs.packages-calculate.outputs.result) }}
+        include: ${{ fromJSON(needs.release-please.outputs.matrix) }}
+    uses: ./.github/workflows/publish-chart.yaml
+    with:
+      chart: ${{ matrix.chart }}
+      version: ${{ matrix.version }}
+      tag: ${{ matrix.tag }}
+
+  pages-index:
+    name: Update Pages index
+    needs:
+      - release-please
+      - publish
+    if: needs.release-please.outputs.paths_released != '[]'
+    concurrency: gh-pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Workflow publish
+      - name: Checkout gh-pages
+        uses: actions/checkout@v7
+        with:
+          ref: gh-pages
+          path: gh-pages
+          fetch-depth: 0
+
+      - name: Download packaged charts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: chart-*
+          path: .cr-release-packages
+          merge-multiple: true
+
+      - name: Install chart-releaser
+        uses: helm/chart-releaser-action@v1
+        with:
+          install_only: true
+
+      - name: Update index.yaml and publish to GitHub Pages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl \
-          -X POST \
-          -H "Accept: application/vnd.github+json" \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
-          https://api.github.com/repos/${{ github.repository }}/actions/workflows/publish-chart.yaml/dispatches \
-          -d '{"ref":"main","inputs":{"package":"${{ matrix.package.name }}","version":"${{ matrix.package.version }}"}}'
+          cr index \
+            -o befritco \
+            -r helm-charts \
+            -i gh-pages/index.yaml \
+            --release-name-template "{{ .Name }}-{{ .Version }}"
+
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update index.yaml"
+            git push origin gh-pages
+          else
+            echo "index.yaml unchanged"
+          fi

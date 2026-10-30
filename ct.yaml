@@ -3,7 +3,8 @@ remote: origin
 target-branch: main
 chart-dirs:
   - charts
-chart-repos:
-  - rethinkdb=https://fastlorenzo.github.io/rethinkdb-helm-chart
-  - bitnami=https://charts.bitnami.com/bitnami
+check-version-increment: false
+validate-maintainers: false
+namespace: expo-ci
+release-label: app.kubernetes.io/instance
 helm-extra-args: --timeout 600s

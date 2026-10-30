@@ -1,0 +1,51 @@
+{{- if not .Values.corsOrigins -}}
+{{- fail "expo-manager: corsOrigins is required. Set it to the comma-separated list of browser origins allowed to call the API, e.g. corsOrigins=https://expo.example.com (an empty CORS allowlist is not a safe production default)." -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "expo-manager.configMapName" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+  {{- with include "expo-manager.annotations" . }}
+  {{- . | nindent 2 }}
+  {{- end }}
+data:
+  NODE_ENV: {{ .Values.environment | quote }}
+  API_PORT: {{ .Values.api.containerPort | int64 | quote }}
+  RETHINKDB_SERVER: {{ include "expo-manager.rethinkdb.host" . | quote }}
+  RETHINKDB_NAME: {{ .Values.rethinkdbName | quote }}
+  CORS_ORIGINS: {{ .Values.corsOrigins | quote }}
+  # Hop count of X-Forwarded-For-appending proxies (1 = gateway -> api). See values.yaml.
+  TRUST_PROXY: {{ .Values.trustProxy | quote }}
+  SHUTDOWN_TIMEOUT_MS: {{ .Values.shutdownTimeoutMs | int64 | quote }}
+  PHOTO_STORAGE_DIR: "/expo/photos"
+  LOG_LEVEL: {{ .Values.logLevel | quote }}
+  LOG_PRETTY: {{ .Values.logPretty | quote }}
+  API_DOCS_ENABLED: {{ .Values.apiDocsEnabled | quote }}
+  PHOTO_MAX_DECODED_BYTES: {{ .Values.photoMaxDecodedBytes | int64 | quote }}
+  LOGIN_RATE_LIMIT_MAX: {{ .Values.loginRateLimit.max | int64 | quote }}
+  LOGIN_RATE_LIMIT_WINDOW_MS: {{ .Values.loginRateLimit.windowMs | int64 | quote }}
+  LOGIN_RATE_LIMIT_IP_MAX: {{ .Values.loginRateLimit.ipMax | int64 | quote }}
+  EMAIL_SENDER_SERVER: {{ .Values.email.server | quote }}
+  EMAIL_SENDER_PORT: {{ .Values.email.port | int64 | quote }}
+  EMAIL_SENDER_ADDRESS: {{ .Values.email.senderAddress | quote }}
+  EMAIL_SENDER_FROM: {{ .Values.email.senderName | quote }}
+  EMAIL_SENDER_USERNAME: {{ .Values.email.senderUsername | quote }}
+  EMAIL_BCC: {{ .Values.email.bcc | quote }}
+  EMAIL_SUBJECT: {{ .Values.email.subject | quote }}
+  CHECKOUT_TEXT_FR: {{ .Values.checkout.text.fr | quote }}
+  CHECKOUT_TEXT_NL: {{ .Values.checkout.text.nl | quote }}
+  CHECKOUT_TEXT_EN: {{ .Values.checkout.text.en | quote }}
+  CHECKOUT_ENTITY: {{ .Values.checkout.entity | quote }}
+  EXPOSITION_ID: {{ .Values.exposition.id | quote }}
+  EXPOSITION_NAME: {{ .Values.exposition.name | quote }}
+  EXPOSITION_DESCRIPTION: {{ .Values.exposition.description | quote }}
+  EXPOSITION_LOGO: {{ .Values.exposition.logo | quote }}
+  APM_ENABLED: {{ .Values.apm.enabled | quote }}
+  APM_SERVICE_NAME: {{ .Values.apm.serviceName | quote }}
+  APM_SERVER_SCHEME: {{ .Values.apm.serverScheme | quote }}
+  APM_SERVER_NAME: {{ .Values.apm.server | quote }}
+  APM_SERVER_PORT: {{ .Values.apm.serverPort | int64 | quote }}

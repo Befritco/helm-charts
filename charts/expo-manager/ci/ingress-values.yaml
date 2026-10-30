@@ -1,0 +1,37 @@
+# chart-testing values: renders the opt-in Ingress.
+global:
+  imagePullSecrets:
+    - befritco-docker-secret
+corsOrigins: "https://expo.example.com"
+api:
+  persistence:
+    photos:
+      enabled: false
+    reports:
+      enabled: false
+web:
+  image:
+    registry: docker.io
+    repository: library/nginx
+    tag: "1.27-alpine"
+  healthPath: /
+rethinkdb:
+  persistence:
+    size: 1Gi
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - expo.example.com
+  tls:
+    - secretName: expo-example-tls
+      hosts:
+        - expo.example.com
+networkPolicy:
+  enabled: true
+  ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+pdb:
+  enabled: true

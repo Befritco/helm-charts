@@ -1,55 +1,53 @@
-{{- if .Values.ingress.enabled -}}
-apiVersion: {{ include "common.capabilities.ingress.apiVersion" . }}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "expo-manager.fullname" . }}
-  namespace: {{ include "common.names.namespace" . | quote }}
-  labels: {{- include "common.labels.standard" . | nindent 4 }}
-    {{- if .Values.commonLabels }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
-    {{- end }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "expo-manager.labels" . | nindent 4 }}
   {{- if or .Values.ingress.annotations .Values.commonAnnotations }}
   annotations:
-    {{- if .Values.ingress.annotations }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.ingress.annotations "context" $ ) | nindent 4 }}
+    {{- with .Values.commonAnnotations }}
+    {{- tpl (toYaml .) $ | nindent 4 }}
     {{- end }}
-    {{- if .Values.commonAnnotations }}
-    {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
-  {{- if and .Values.ingress.ingressClassName (eq "true" (include "common.ingress.supportsIngressClassname" .)) }}
-  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+  {{- with .Values.ingress.ingressClassName }}
+  ingressClassName: {{ . | quote }}
   {{- end }}
-  {{- if .Values.ingress.tls }}
+  {{- with .Values.ingress.tls }}
   tls:
-    {{- range .Values.ingress.tls }}
-    - hosts:
-        {{- range .hosts }}
-        - {{ . | quote }}
-        {{- end }}
-      secretName: {{ .secretName }}
-    {{- end }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
   rules:
     {{- range .Values.ingress.hosts }}
     - host: {{ . | quote }}
       http:
         paths:
-          - path: /api/.*
-            {{- if eq "true" (include "common.ingress.supportsPathType" $) }}
+          - path: /api/
             pathType: {{ $.Values.ingress.pathType }}
-            {{- end }}
-            backend: {{- include "common.ingress.backend" (dict "serviceName" (include "expo-manager.api.serviceName" $) "servicePort" "http" "context" $)  | nindent 14 }}
-          - path: /socket\.io.*
-            {{- if eq "true" (include "common.ingress.supportsPathType" $) }}
+            backend:
+              service:
+                name: {{ include "expo-manager.api.serviceName" $ }}
+                port:
+                  name: http
+          - path: /socket.io
             pathType: {{ $.Values.ingress.pathType }}
-            {{- end }}
-            backend: {{- include "common.ingress.backend" (dict "serviceName" (include "expo-manager.api.serviceName" $) "servicePort" "http" "context" $)  | nindent 14 }}
+            backend:
+              service:
+                name: {{ include "expo-manager.api.serviceName" $ }}
+                port:
+                  name: http
           - path: /
-            {{- if eq "true" (include "common.ingress.supportsPathType" $) }}
             pathType: {{ $.Values.ingress.pathType }}
-            {{- end }}
-            backend: {{- include "common.ingress.backend" (dict "serviceName" (include "expo-manager.web.serviceName" $) "servicePort" "http" "context" $)  | nindent 14 }}
+            backend:
+              service:
+                name: {{ include "expo-manager.web.serviceName" $ }}
+                port:
+                  name: http
     {{- end }}
 {{- end }}
