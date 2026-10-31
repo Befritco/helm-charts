@@ -131,3 +131,14 @@ storageClassName: {{ $sc | quote }}
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{/*
+Name of the service account to use.
+*/}}
+{{- define "rethinkdb.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (include "rethinkdb.fullname" .) .Values.serviceAccount.name -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}

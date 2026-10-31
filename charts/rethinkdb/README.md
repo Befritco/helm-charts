@@ -107,17 +107,20 @@ per-table setting the application raises afterwards -- see [Replication](#replic
 
 ### Other parameters
 
-| Name                                      | Description                                                                                                                                                      | Value          |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `pdb.enabled`                             | Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability. | `true`         |
-| `pdb.maxUnavailable`                      | Max unavailable pods allowed by the PodDisruptionBudget                                                                                                          | `1`            |
-| `networkPolicy.enabled`                   | Create a NetworkPolicy restricting traffic to the pod                                                                                                            | `false`        |
-| `networkPolicy.allowedPodSelectors`       | List of `matchLabels` maps allowed to reach the driver port (28015)                                                                                              | `[]`           |
-| `networkPolicy.allowedNamespaceSelectors` | List of namespace `matchLabels` maps allowed to reach the driver port (28015)                                                                                    | `[]`           |
-| `tests.image.registry`                    | Image registry for the `helm test` connection-check pod                                                                                                          | `docker.io`    |
-| `tests.image.repository`                  | Image repository for the `helm test` connection-check pod                                                                                                        | `busybox`      |
-| `tests.image.tag`                         | Image tag for the `helm test` connection-check pod                                                                                                               | `1.36`         |
-| `tests.image.pullPolicy`                  | Image pull policy for the `helm test` connection-check pod                                                                                                       | `IfNotPresent` |
+| Name                                      | Description                                                                                                                                                                                           | Value          |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `pdb.enabled`                             | Create a PodDisruptionBudget when `replicaCount` > 1. Never rendered for a single node, where a budget could only block node drains without adding availability.                                      | `true`         |
+| `pdb.maxUnavailable`                      | Max unavailable pods allowed by the PodDisruptionBudget                                                                                                                                               | `1`            |
+| `serviceAccount.create`                   | Create a dedicated ServiceAccount for the RethinkDB pods. Its identity lets mesh authorization (e.g. Istio `principals`) admit only the members themselves to the unauthenticated cluster port 29015. | `true`         |
+| `serviceAccount.name`                     | Name of the ServiceAccount. The fullname when empty and `create` is true; `default` otherwise.                                                                                                        | `""`           |
+| `serviceAccount.annotations`              | Annotations for the ServiceAccount                                                                                                                                                                    | `{}`           |
+| `networkPolicy.enabled`                   | Create a NetworkPolicy restricting traffic to the pod                                                                                                                                                 | `false`        |
+| `networkPolicy.allowedPodSelectors`       | List of `matchLabels` maps allowed to reach the driver port (28015)                                                                                                                                   | `[]`           |
+| `networkPolicy.allowedNamespaceSelectors` | List of namespace `matchLabels` maps allowed to reach the driver port (28015)                                                                                                                         | `[]`           |
+| `tests.image.registry`                    | Image registry for the `helm test` connection-check pod                                                                                                                                               | `docker.io`    |
+| `tests.image.repository`                  | Image repository for the `helm test` connection-check pod                                                                                                                                             | `busybox`      |
+| `tests.image.tag`                         | Image tag for the `helm test` connection-check pod                                                                                                                                                    | `1.36`         |
+| `tests.image.pullPolicy`                  | Image pull policy for the `helm test` connection-check pod                                                                                                                                            | `IfNotPresent` |
 
 ## Clustering and HA
 
@@ -220,6 +223,42 @@ tolerates any count, but table primaries are elected by a majority of a table's 
   back, otherwise the member simply rejoins with its old data when you do.
 - A table that lost a majority of its replicas for good needs
   `reconfigure({emergencyRepair: 'unsafe_rollback'})` -- see the RethinkDB failover docs.
+
+## Service mesh
+
+On an Istio ambient mesh all mTLS traffic reaches the pods on the HBONE port 15008, so the
+NetworkPolicy's per-port rules (`networkPolicy.*`) do not restrict mesh clients. RethinkDB has no
+authentication on its cluster port (29015) or its admin UI (8080), so restrict them with L4
+`AuthorizationPolicy` rules on the source identity. The chart gives the pods their own
+ServiceAccount (`serviceAccount.*`) for that:
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: my-release-rethinkdb-deny
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rethinkdb
+      app.kubernetes.io/instance: my-release
+  action: DENY
+  rules:
+    # Only the application may use the driver port.
+    - from:
+        - source:
+            notPrincipals: ["cluster.local/ns/<ns>/sa/<app-serviceaccount>"]
+      to:
+        - operation:
+            ports: ["28015"]
+    # Only the other members may join the cluster.
+    - from:
+        - source:
+            notPrincipals: ["cluster.local/ns/<ns>/sa/my-release-rethinkdb"]
+      to:
+        - operation:
+            ports: ["29015"]
+```
 
 ## Replication
 

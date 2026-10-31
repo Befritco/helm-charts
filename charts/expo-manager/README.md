@@ -48,16 +48,17 @@ count.
 
 ### Common parameters
 
-| Name                                          | Description                                                                                                                 | Value   |
-| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `nameOverride`                                | String to partially override expo-manager.fullname (keeps the release name)                                                 | `""`    |
-| `fullnameOverride`                            | String to fully override expo-manager.fullname. Service names become `<fullnameOverride>-api` and `<fullnameOverride>-web`. | `""`    |
-| `commonLabels`                                | Labels added to every resource this chart creates (templated)                                                               | `{}`    |
-| `commonAnnotations`                           | Annotations added to every resource this chart creates (templated)                                                          | `{}`    |
-| `serviceAccount.create`                       | Create a ServiceAccount for the api and web pods                                                                            | `true`  |
-| `serviceAccount.name`                         | Name of the ServiceAccount to use. Generated from the fullname when empty and `create` is true; `default` otherwise.        | `""`    |
-| `serviceAccount.annotations`                  | Annotations for the ServiceAccount                                                                                          | `{}`    |
-| `serviceAccount.automountServiceAccountToken` | Mount the ServiceAccount token into the pods. Neither container talks to the Kubernetes API, so this stays off.             | `false` |
+| Name                                          | Description                                                                                                                                                              | Value   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+| `nameOverride`                                | String to partially override expo-manager.fullname (keeps the release name)                                                                                              | `""`    |
+| `fullnameOverride`                            | String to fully override expo-manager.fullname. Service names become `<fullnameOverride>-api` and `<fullnameOverride>-web`.                                              | `""`    |
+| `commonLabels`                                | Labels added to every resource this chart creates (templated)                                                                                                            | `{}`    |
+| `commonAnnotations`                           | Annotations added to every resource this chart creates (templated)                                                                                                       | `{}`    |
+| `serviceAccount.create`                       | Create one ServiceAccount per component (api, web). Separate identities let a service mesh or NetworkPolicy tell the API (the only RethinkDB client) from the web nginx. | `true`  |
+| `serviceAccount.name`                         | Name of the API's ServiceAccount. `<fullname>-api` when empty and `create` is true; `default` otherwise.                                                                 | `""`    |
+| `serviceAccount.webName`                      | Name of the web pod's ServiceAccount. `<fullname>-web` when empty and `create` is true; `default` otherwise.                                                             | `""`    |
+| `serviceAccount.annotations`                  | Annotations for both ServiceAccounts                                                                                                                                     | `{}`    |
+| `serviceAccount.automountServiceAccountToken` | Mount the ServiceAccount token into the pods. Neither container talks to the Kubernetes API, so this stays off.                                                          | `false` |
 
 ### Application configuration
 
@@ -70,7 +71,7 @@ count.
 | `shutdownTimeoutMs`       | `SHUTDOWN_TIMEOUT_MS`: bound on the API's graceful shutdown after SIGTERM before it force-exits. Must stay well below `api.terminationGracePeriodSeconds`.                                                                                                                                                                                        | `10000`                                                                                                                   |
 | `logLevel`                | `LOG_LEVEL`: pino level (`debug`, `info`, `warn`, `error`)                                                                                                                                                                                                                                                                                        | `info`                                                                                                                    |
 | `logPretty`               | `LOG_PRETTY`: `true` for colourised pino-pretty output, `false` for JSON lines (what log collectors want)                                                                                                                                                                                                                                         | `false`                                                                                                                   |
-| `apiDocsEnabled`          | `API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs`. Set `false` to hide the route surface from unauthenticated callers.                                                                                                                                                                                                   | `true`                                                                                                                    |
+| `apiDocsEnabled`          | `API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs` to unauthenticated callers. Off by default in production; turn it on for development or a private instance.                                                                                                                                                            | `false`                                                                                                                   |
 | `photoMaxDecodedBytes`    | `PHOTO_MAX_DECODED_BYTES`: maximum decoded size of a photo upload; the JSON body-parser limit is derived from it                                                                                                                                                                                                                                  | `8388608`                                                                                                                 |
 | `loginRateLimit.max`      | `LOGIN_RATE_LIMIT_MAX`: failed login attempts per window keyed on ip+username                                                                                                                                                                                                                                                                     | `10`                                                                                                                      |
 | `loginRateLimit.windowMs` | `LOGIN_RATE_LIMIT_WINDOW_MS`: window shared by both login rate limiters                                                                                                                                                                                                                                                                           | `900000`                                                                                                                  |
@@ -324,6 +325,9 @@ maintenance window and follow the steps below.
 `existingSecret` and its keys (`jwt-secret`, `initial-user-password`, `email-sender-password`,
 `rethinkdb-password`), `global.imagePullSecrets`, `email.*`, `checkout.*`, `exposition.*`,
 `serviceAccount.*` and the two Service names are unchanged, so an existing HTTPRoute keeps working.
+The api and web pods now each get their own ServiceAccount (`<fullname>-api`, `<fullname>-web`;
+`serviceAccount.name` names the API's), so mesh authorization can single out the API as the
+only RethinkDB client.
 
 ### RethinkDB data move
 

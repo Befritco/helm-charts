@@ -436,6 +436,26 @@
                 }
             }
         },
+        "serviceAccount": {
+            "type": "object",
+            "properties": {
+                "create": {
+                    "type": "boolean",
+                    "description": "Create a dedicated ServiceAccount for the RethinkDB pods. Its identity lets mesh authorization (e.g. Istio `principals`) admit only the members themselves to the unauthenticated cluster port 29015.",
+                    "default": true
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Name of the ServiceAccount. The fullname when empty and `create` is true; `default` otherwise.",
+                    "default": ""
+                },
+                "annotations": {
+                    "type": "object",
+                    "description": "Annotations for the ServiceAccount",
+                    "default": {}
+                }
+            }
+        },
         "networkPolicy": {
             "type": "object",
             "properties": {

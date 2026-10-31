@@ -147,9 +147,20 @@ Name of the service account to use.
 */}}
 {{- define "expo-manager.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-{{- default (include "expo-manager.fullname" .) .Values.serviceAccount.name -}}
+{{- default (printf "%s-api" (include "expo-manager.fullname" .)) .Values.serviceAccount.name -}}
 {{- else -}}
 {{- default "default" .Values.serviceAccount.name -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Name of the web pod's service account.
+*/}}
+{{- define "expo-manager.webServiceAccountName" -}}
+{{- if .Values.serviceAccount.create -}}
+{{- default (printf "%s-web" (include "expo-manager.fullname" .)) .Values.serviceAccount.webName -}}
+{{- else -}}
+{{- default "default" .Values.serviceAccount.webName -}}
 {{- end -}}
 {{- end -}}
 

@@ -48,17 +48,22 @@
             "properties": {
                 "create": {
                     "type": "boolean",
-                    "description": "Create a ServiceAccount for the api and web pods",
+                    "description": "Create one ServiceAccount per component (api, web). Separate identities let a service mesh or NetworkPolicy tell the API (the only RethinkDB client) from the web nginx.",
                     "default": true
                 },
                 "name": {
                     "type": "string",
-                    "description": "Name of the ServiceAccount to use. Generated from the fullname when empty and `create` is true; `default` otherwise.",
+                    "description": "Name of the API's ServiceAccount. `<fullname>-api` when empty and `create` is true; `default` otherwise.",
+                    "default": ""
+                },
+                "webName": {
+                    "type": "string",
+                    "description": "Name of the web pod's ServiceAccount. `<fullname>-web` when empty and `create` is true; `default` otherwise.",
                     "default": ""
                 },
                 "annotations": {
                     "type": "object",
-                    "description": "Annotations for the ServiceAccount",
+                    "description": "Annotations for both ServiceAccounts",
                     "default": {}
                 },
                 "automountServiceAccountToken": {
@@ -105,8 +110,8 @@
         },
         "apiDocsEnabled": {
             "type": "boolean",
-            "description": "`API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs`. Set `false` to hide the route surface from unauthenticated callers.",
-            "default": true
+            "description": "`API_DOCS_ENABLED`: serve Swagger UI / the OpenAPI document at `/api-docs` to unauthenticated callers. Off by default in production; turn it on for development or a private instance.",
+            "default": false
         },
         "photoMaxDecodedBytes": {
             "type": "number",
