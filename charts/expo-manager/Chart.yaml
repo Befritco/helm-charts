@@ -5,7 +5,7 @@ type: application
 # `version` is bumped by release-please (a `feat!:` commit takes it to 2.0.0); `appVersion` is
 # maintained by hand: it is the API release (Befritco/expo `api-vX.Y.Z`) and the default tag of the
 # api image. The web image is versioned separately, so its default tag is `web.image.tag`.
-version: 1.0.8
+version: 2.0.0
 appVersion: "3.0.0"
 kubeVersion: ">=1.29.0-0"
 home: https://github.com/Befritco/helm-charts
