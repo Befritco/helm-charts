@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.8...expo-manager-2.0.0) (2026-10-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* **expo-manager:** the chart needs web image 2.0.1 or later; an older (root, port 80) web image fails its probes unless web.containerPort is 80 and the web security contexts are cleared.
+* values and resources change shape. Images are ghcr.io/befritco/expo/api and /web; api.persistence splits into .reports and .photos; the rethinkdb block follows the new single or multi-node subchart; ingress annotations are no longer defaulted; the bitnami/common dependency is gone. See the README's "Upgrading from 1.x" section for the data move.
+
+### Features
+
+* **expo-manager:** Microsoft 365 OAuth2 for the checkout email ([#27](https://github.com/Befritco/helm-charts/issues/27)) ([02a28b9](https://github.com/Befritco/helm-charts/commit/02a28b9985e07c63d261a6eeb9b79c6d926d31cf))
+* **expo-manager:** run the web pod unprivileged with a read-only root filesystem ([#29](https://github.com/Befritco/helm-charts/issues/29)) ([792857f](https://github.com/Befritco/helm-charts/commit/792857febf82859a63d73e56345ebb1de14fb4a0))
+* per-workload service accounts, API docs off by default ([#26](https://github.com/Befritco/helm-charts/issues/26)) ([8969fb4](https://github.com/Befritco/helm-charts/commit/8969fb4f816b487761c4219293d2d37db8b48785))
+* rework charts for the rebuilt application, add a RethinkDB chart, publish as OCI ([#20](https://github.com/Befritco/helm-charts/issues/20)) ([1d0c4de](https://github.com/Befritco/helm-charts/commit/1d0c4deb55724c471ff8d9e0dc4b5fef3a5721ad))
+
+
+### Bug Fixes
+
+* **expo-manager:** default exposition.logo to empty ([#24](https://github.com/Befritco/helm-charts/issues/24)) ([ba5df25](https://github.com/Befritco/helm-charts/commit/ba5df25f98425d89ecb2df98193833cecabce052))
+* **expo-manager:** exposition defaults match the API's seed ([#28](https://github.com/Befritco/helm-charts/issues/28)) ([cdda6d6](https://github.com/Befritco/helm-charts/commit/cdda6d67f4eda9ef77f5c3d47c061eb7c5043b06))
+
 ## [1.0.8](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.7...expo-manager-1.0.8) (2023-01-28)
 
 
