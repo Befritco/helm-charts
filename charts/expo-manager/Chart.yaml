@@ -4,7 +4,7 @@ description: Expo event-operations platform (API + web) with a single-node Rethi
 type: application
 # `version` is bumped by release-please (a `feat!:` commit takes it to 2.0.0); `appVersion` is
 # maintained by hand and is the default tag of the api/web images.
-version: 1.0.8
+version: 2.0.0
 appVersion: "2.0.0"
 kubeVersion: ">=1.29.0-0"
 home: https://github.com/Befritco/helm-charts
