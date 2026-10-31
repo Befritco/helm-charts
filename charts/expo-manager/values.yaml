@@ -146,7 +146,7 @@ api:
 
   ## @param api.image.registry API image registry
   ## @param api.image.repository API image repository
-  ## @param api.image.tag API image tag, defaults to the chart's `appVersion`
+  ## @param api.image.tag API image tag, defaults to the chart's `appVersion` (the API release)
   ## @param api.image.digest API image digest (`sha256:...`), overrides `tag` when set
   ## @param api.image.pullPolicy API image pull policy
   ## @param api.image.pullSecrets API image pull secrets, merged with `global.imagePullSecrets`
@@ -342,14 +342,14 @@ web:
 
   ## @param web.image.registry Web image registry
   ## @param web.image.repository Web image repository
-  ## @param web.image.tag Web image tag, defaults to the chart's `appVersion`
+  ## @param web.image.tag Web image tag (Befritco/expo `web-vX.Y.Z`; the web image is versioned separately from the API). 2.0.1 or later runs unprivileged on port 8080.
   ## @param web.image.digest Web image digest (`sha256:...`), overrides `tag` when set
   ## @param web.image.pullPolicy Web image pull policy
   ## @param web.image.pullSecrets Web image pull secrets, merged with `global.imagePullSecrets`
   image:
     registry: ghcr.io
     repository: befritco/expo/web
-    tag: ""
+    tag: "2.0.1"
     digest: ""
     pullPolicy: IfNotPresent
     pullSecrets: []
