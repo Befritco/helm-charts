@@ -243,8 +243,8 @@
                 },
                 "logo": {
                     "type": "string",
-                    "description": "`EXPOSITION_LOGO`: URL of the exposition logo",
-                    "default": "https://example.com/logo.png"
+                    "description": "`EXPOSITION_LOGO`: unused by the API (the seed reads infra/seed/exposition.json, not this). Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.",
+                    "default": ""
                 }
             }
         },
@@ -1220,7 +1220,7 @@
                 },
                 "extraEgress": {
                     "type": "array",
-                    "description": "Extra egress rules for the api policy, verbatim (SMTP, the exposition logo URL, APM, an external RethinkDB...)",
+                    "description": "Extra egress rules for the api policy, verbatim (SMTP, APM, an external RethinkDB...)",
                     "default": [],
                     "items": {}
                 }

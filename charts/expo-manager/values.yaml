@@ -107,12 +107,12 @@ checkout:
 ## @param exposition.id `EXPOSITION_ID`: id of the exposition seeded at first boot
 ## @param exposition.name `EXPOSITION_NAME`: name of the exposition
 ## @param exposition.description `EXPOSITION_DESCRIPTION`: description of the exposition
-## @param exposition.logo `EXPOSITION_LOGO`: URL of the exposition logo
+## @param exposition.logo `EXPOSITION_LOGO`: unused by the API (the seed reads infra/seed/exposition.json, not this). Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.
 exposition:
   id: "exposition"
   name: "Exposition"
   description: "Exposition"
-  logo: "https://example.com/logo.png"
+  logo: ""
 
 ## @param apm.enabled `APM_ENABLED`: enable Elastic APM instrumentation of the API
 ## @param apm.serviceName `APM_SERVICE_NAME`: APM service name
@@ -501,7 +501,7 @@ ingress:
 ## @param networkPolicy.enabled Create NetworkPolicies for the api and web pods
 ## @param networkPolicy.ingressFrom List of NetworkPolicy `from` peers allowed to reach the web and api Services, e.g. the gateway namespace: `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: istio-system}}}]`
 ## @param networkPolicy.extraIngress Extra ingress rules for the api policy, verbatim
-## @param networkPolicy.extraEgress Extra egress rules for the api policy, verbatim (SMTP, the exposition logo URL, APM, an external RethinkDB...)
+## @param networkPolicy.extraEgress Extra egress rules for the api policy, verbatim (SMTP, APM, an external RethinkDB...)
 networkPolicy:
   enabled: false
   ingressFrom: []
