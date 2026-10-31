@@ -29,6 +29,10 @@ web:
     repository: library/nginx
     tag: "1.27-alpine"
   healthPath: /
+  # The stock image runs its master as root on port 80 with a writable root filesystem.
+  containerPort: 80
+  podSecurityContext: null
+  containerSecurityContext: null
 
 rethinkdb:
   persistence:

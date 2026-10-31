@@ -106,11 +106,31 @@ spec:
           {{- end }}
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}
-          {{- with .Values.web.extraVolumeMounts }}
+          {{- $readOnlyRoot := (.Values.web.containerSecurityContext | default dict).readOnlyRootFilesystem }}
+          {{- if or $readOnlyRoot .Values.web.extraVolumeMounts }}
           volumeMounts:
+            {{- if $readOnlyRoot }}
+            # Writable paths of the unprivileged image under a read-only root filesystem.
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: tmp
+              mountPath: /tmp
+            {{- end }}
+            {{- with .Values.web.extraVolumeMounts }}
             {{- tpl (toYaml .) $ | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- with .Values.web.extraVolumes }}
+      {{- if or $readOnlyRoot .Values.web.extraVolumes }}
       volumes:
+        {{- if $readOnlyRoot }}
+        - name: nginx-conf
+          emptyDir:
+            sizeLimit: 1Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        {{- end }}
+        {{- with .Values.web.extraVolumes }}
         {{- tpl (toYaml .) $ | nindent 8 }}
+        {{- end }}
       {{- end }}
