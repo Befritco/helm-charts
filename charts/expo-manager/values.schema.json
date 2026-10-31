@@ -233,22 +233,22 @@
             "properties": {
                 "id": {
                     "type": "string",
-                    "description": "`EXPOSITION_ID`: id of the exposition seeded at first boot",
-                    "default": "exposition"
+                    "description": "`EXPOSITION_ID`: id of the exposition the API seeds when no exposition with that id exists, and the fallback exposition of the PDF routes. Letters, digits, `_` and `-` only. Since api 3.0.0 the seed creates it from these values; the default matches the API's own (`exposition_id`).",
+                    "default": "exposition_id"
                 },
                 "name": {
                     "type": "string",
-                    "description": "`EXPOSITION_NAME`: name of the exposition",
-                    "default": "Exposition"
+                    "description": "`EXPOSITION_NAME`: name of the seeded exposition, applied only when it is created (rename it in the web app afterwards). Empty means the API default.",
+                    "default": ""
                 },
                 "description": {
                     "type": "string",
-                    "description": "`EXPOSITION_DESCRIPTION`: description of the exposition",
-                    "default": "Exposition"
+                    "description": "`EXPOSITION_DESCRIPTION`: description of the seeded exposition, applied only when it is created. Empty means the API default.",
+                    "default": ""
                 },
                 "logo": {
                     "type": "string",
-                    "description": "`EXPOSITION_LOGO`: unused by the API (the seed reads infra/seed/exposition.json, not this). Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.",
+                    "description": "`EXPOSITION_LOGO`: unused by the seed. Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.",
                     "default": ""
                 }
             }

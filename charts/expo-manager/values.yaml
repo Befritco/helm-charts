@@ -106,14 +106,14 @@ checkout:
     en: "If the stand is left without waste and damage, the guarantee will be returned to the bank account within 4 weeks."
   entity: "Expo Operations"
 
-## @param exposition.id `EXPOSITION_ID`: id of the exposition seeded at first boot
-## @param exposition.name `EXPOSITION_NAME`: name of the exposition
-## @param exposition.description `EXPOSITION_DESCRIPTION`: description of the exposition
-## @param exposition.logo `EXPOSITION_LOGO`: unused by the API (the seed reads infra/seed/exposition.json, not this). Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.
+## @param exposition.id `EXPOSITION_ID`: id of the exposition the API seeds when no exposition with that id exists, and the fallback exposition of the PDF routes. Letters, digits, `_` and `-` only. Since api 3.0.0 the seed creates it from these values; the default matches the API's own (`exposition_id`).
+## @param exposition.name `EXPOSITION_NAME`: name of the seeded exposition, applied only when it is created (rename it in the web app afterwards). Empty means the API default.
+## @param exposition.description `EXPOSITION_DESCRIPTION`: description of the seeded exposition, applied only when it is created. Empty means the API default.
+## @param exposition.logo `EXPOSITION_LOGO`: unused by the seed. Since api 3.0.0 logos are uploaded in the web app; anything but empty or an image data URI is ignored with a warning.
 exposition:
-  id: "exposition"
-  name: "Exposition"
-  description: "Exposition"
+  id: "exposition_id"
+  name: ""
+  description: ""
   logo: ""
 
 ## @param apm.enabled `APM_ENABLED`: enable Elastic APM instrumentation of the API
