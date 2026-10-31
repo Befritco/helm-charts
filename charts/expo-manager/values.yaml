@@ -354,8 +354,8 @@ web:
     pullPolicy: IfNotPresent
     pullSecrets: []
 
-  ## @param web.containerPort Port nginx listens on inside the container
-  containerPort: 80
+  ## @param web.containerPort Port nginx listens on inside the container. The web image runs unprivileged from web 2.0.1 and listens on 8080.
+  containerPort: 8080
   ## @param web.healthPath Path of the web health endpoint used by the probes and `helm test`. `/nginx-health` is a static 200 independent of the API.
   healthPath: /nginx-health
   ## @param web.apiUpstream `API_UPSTREAM`, the `host:port` nginx proxies `/api/v1`, `/socket.io`, `/api-docs` and `/healthz` to. Defaults to `<fullname>-api:<api.service.port>`.
@@ -432,13 +432,33 @@ web:
       cpu: 200m
       memory: 128Mi
 
-  ## No securityContext by default: the image's nginx master runs as root and renders its config
-  ## into /etc/nginx/conf.d at start. To run it non-root / read-only, set runAsUser 101 here and
-  ## add emptyDir `extraVolumes` mounted at /etc/nginx/conf.d, /var/cache/nginx and /var/run.
-  ## @param web.podSecurityContext Pod-level securityContext for the web pod (see the comment above)
-  podSecurityContext: {}
-  ## @param web.containerSecurityContext Container-level securityContext for the web container (see the comment above)
-  containerSecurityContext: {}
+  ## From web 2.0.1 the image runs nginx unprivileged (uid/gid 101, master included) on port 8080.
+  ## The root filesystem is read-only: the chart mounts emptyDirs at /etc/nginx/conf.d (where the
+  ## entrypoint renders nginx.conf.template at every start) and /tmp (pid file, temp paths).
+  ## @param web.podSecurityContext.runAsNonRoot Require the web pod to run as a non-root user
+  ## @param web.podSecurityContext.runAsUser User ID of nginx (the image's `nginx` user)
+  ## @param web.podSecurityContext.runAsGroup Group ID of nginx
+  ## @param web.podSecurityContext.fsGroup Group that owns the mounted emptyDirs
+  ## @param web.podSecurityContext.seccompProfile.type Seccomp profile type
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  ## @param web.containerSecurityContext.allowPrivilegeEscalation Whether nginx can gain more privileges than its parent
+  ## @param web.containerSecurityContext.readOnlyRootFilesystem Mount the container's root filesystem read-only (the chart mounts emptyDirs at /etc/nginx/conf.d and /tmp)
+  ## @param web.containerSecurityContext.capabilities.drop Linux capabilities to drop
+  ## @param web.containerSecurityContext.seccompProfile.type Seccomp profile type
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
 
   ## @param web.podLabels Extra labels for the web pod
   podLabels: {}

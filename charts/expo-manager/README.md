@@ -22,8 +22,9 @@ What the chart renders by default:
   the boot migration, PVCs for `/expo/photos` and `/expo/reports`, an in-memory `emptyDir` on
   `/dev/shm` (Chromium), non-root (uid 1000) with all capabilities dropped.
 - `<release>-expo-manager-web`: a rolling-update Deployment of the nginx image, `API_UPSTREAM`
-  pointed at the API Service, probes on `/nginx-health`, a `preStop` sleep. No securityContext by
-  default (see `web.podSecurityContext` in the parameters table).
+  pointed at the API Service, probes on `/nginx-health`, a `preStop` sleep. nginx runs unprivileged
+  (uid/gid 101, container port 8080, web image 2.0.1 or later) with a read-only root filesystem,
+  all capabilities dropped and emptyDirs at `/etc/nginx/conf.d` and `/tmp`.
 - Services `<release>-expo-manager-api:9000` and `<release>-expo-manager-web:80` (port name
   `http`) -- the names external HTTPRoutes/Ingresses must reference.
 - The `rethinkdb` subchart: StatefulSet `<release>-rethinkdb`, driver Service
@@ -189,60 +190,67 @@ count.
 
 ### Web parameters
 
-| Name                                     | Description                                                                                                                                            | Value               |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
-| `web.replicaCount`                       | Number of web (nginx) replicas                                                                                                                         | `1`                 |
-| `web.image.registry`                     | Web image registry                                                                                                                                     | `ghcr.io`           |
-| `web.image.repository`                   | Web image repository                                                                                                                                   | `befritco/expo/web` |
-| `web.image.tag`                          | Web image tag, defaults to the chart's `appVersion`                                                                                                    | `""`                |
-| `web.image.digest`                       | Web image digest (`sha256:...`), overrides `tag` when set                                                                                              | `""`                |
-| `web.image.pullPolicy`                   | Web image pull policy                                                                                                                                  | `IfNotPresent`      |
-| `web.image.pullSecrets`                  | Web image pull secrets, merged with `global.imagePullSecrets`                                                                                          | `[]`                |
-| `web.containerPort`                      | Port nginx listens on inside the container                                                                                                             | `80`                |
-| `web.healthPath`                         | Path of the web health endpoint used by the probes and `helm test`. `/nginx-health` is a static 200 independent of the API.                            | `/nginx-health`     |
-| `web.apiUpstream`                        | `API_UPSTREAM`, the `host:port` nginx proxies `/api/v1`, `/socket.io`, `/api-docs` and `/healthz` to. Defaults to `<fullname>-api:<api.service.port>`. | `""`                |
-| `web.dnsResolver`                        | `DNS_RESOLVER`, nginx's resolver. Auto-detected from the pod's /etc/resolv.conf when empty.                                                            | `""`                |
-| `web.service.type`                       | Web Service type. The Service is named `<fullname>-web` and its port `http`.                                                                           | `ClusterIP`         |
-| `web.service.port`                       | Web Service port. External HTTPRoutes/Ingresses target `<fullname>-web:<port>`.                                                                        | `80`                |
-| `web.service.annotations`                | Annotations for the web Service                                                                                                                        | `{}`                |
-| `web.updateStrategy.type`                | Deployment strategy for the web tier                                                                                                                   | `RollingUpdate`     |
-| `web.terminationGracePeriodSeconds`      | Seconds between SIGTERM and SIGKILL of the web pod                                                                                                     | `10`                |
-| `web.preStopSleepSeconds`                | Seconds the preStop hook sleeps so in-flight requests drain while endpoints propagate. `0` disables the hook.                                          | `5`                 |
-| `web.startupProbe.enabled`               | Enable the startupProbe                                                                                                                                | `false`             |
-| `web.startupProbe.initialDelaySeconds`   | Initial delay seconds for the startupProbe                                                                                                             | `0`                 |
-| `web.startupProbe.periodSeconds`         | Period seconds for the startupProbe                                                                                                                    | `5`                 |
-| `web.startupProbe.timeoutSeconds`        | Timeout seconds for the startupProbe                                                                                                                   | `3`                 |
-| `web.startupProbe.failureThreshold`      | Failure threshold for the startupProbe                                                                                                                 | `12`                |
-| `web.startupProbe.successThreshold`      | Success threshold for the startupProbe                                                                                                                 | `1`                 |
-| `web.readinessProbe.enabled`             | Enable the readinessProbe                                                                                                                              | `true`              |
-| `web.readinessProbe.initialDelaySeconds` | Initial delay seconds for the readinessProbe                                                                                                           | `2`                 |
-| `web.readinessProbe.periodSeconds`       | Period seconds for the readinessProbe                                                                                                                  | `10`                |
-| `web.readinessProbe.timeoutSeconds`      | Timeout seconds for the readinessProbe                                                                                                                 | `3`                 |
-| `web.readinessProbe.failureThreshold`    | Failure threshold for the readinessProbe                                                                                                               | `3`                 |
-| `web.readinessProbe.successThreshold`    | Success threshold for the readinessProbe                                                                                                               | `1`                 |
-| `web.livenessProbe.enabled`              | Enable the livenessProbe                                                                                                                               | `true`              |
-| `web.livenessProbe.initialDelaySeconds`  | Initial delay seconds for the livenessProbe                                                                                                            | `5`                 |
-| `web.livenessProbe.periodSeconds`        | Period seconds for the livenessProbe                                                                                                                   | `15`                |
-| `web.livenessProbe.timeoutSeconds`       | Timeout seconds for the livenessProbe                                                                                                                  | `3`                 |
-| `web.livenessProbe.failureThreshold`     | Failure threshold for the livenessProbe                                                                                                                | `3`                 |
-| `web.livenessProbe.successThreshold`     | Success threshold for the livenessProbe                                                                                                                | `1`                 |
-| `web.resources.requests.cpu`             | Requested CPU for the web container                                                                                                                    | `25m`               |
-| `web.resources.requests.memory`          | Requested memory for the web container                                                                                                                 | `32Mi`              |
-| `web.resources.limits.cpu`               | CPU limit for the web container                                                                                                                        | `200m`              |
-| `web.resources.limits.memory`            | Memory limit for the web container                                                                                                                     | `128Mi`             |
-| `web.podSecurityContext`                 | Pod-level securityContext for the web pod (see the comment above)                                                                                      | `{}`                |
-| `web.containerSecurityContext`           | Container-level securityContext for the web container (see the comment above)                                                                          | `{}`                |
-| `web.podLabels`                          | Extra labels for the web pod                                                                                                                           | `{}`                |
-| `web.podAnnotations`                     | Extra annotations for the web pod                                                                                                                      | `{}`                |
-| `web.nodeSelector`                       | Node labels for web pod assignment                                                                                                                     | `{}`                |
-| `web.tolerations`                        | Tolerations for web pod assignment                                                                                                                     | `[]`                |
-| `web.affinity`                           | Affinity for web pod assignment                                                                                                                        | `{}`                |
-| `web.topologySpreadConstraints`          | Topology spread constraints for the web pod                                                                                                            | `[]`                |
-| `web.priorityClassName`                  | Priority class of the web pod                                                                                                                          | `""`                |
-| `web.initContainers`                     | Extra init containers for the web pod (templated)                                                                                                      | `[]`                |
-| `web.extraEnvVars`                       | Extra environment variables for the web container (templated)                                                                                          | `[]`                |
-| `web.extraVolumes`                       | Extra volumes for the web pod (templated)                                                                                                              | `[]`                |
-| `web.extraVolumeMounts`                  | Extra volume mounts for the web container (templated)                                                                                                  | `[]`                |
+| Name                                                    | Description                                                                                                                                            | Value               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- |
+| `web.replicaCount`                                      | Number of web (nginx) replicas                                                                                                                         | `1`                 |
+| `web.image.registry`                                    | Web image registry                                                                                                                                     | `ghcr.io`           |
+| `web.image.repository`                                  | Web image repository                                                                                                                                   | `befritco/expo/web` |
+| `web.image.tag`                                         | Web image tag, defaults to the chart's `appVersion`                                                                                                    | `""`                |
+| `web.image.digest`                                      | Web image digest (`sha256:...`), overrides `tag` when set                                                                                              | `""`                |
+| `web.image.pullPolicy`                                  | Web image pull policy                                                                                                                                  | `IfNotPresent`      |
+| `web.image.pullSecrets`                                 | Web image pull secrets, merged with `global.imagePullSecrets`                                                                                          | `[]`                |
+| `web.containerPort`                                     | Port nginx listens on inside the container. The web image runs unprivileged from web 2.0.1 and listens on 8080.                                        | `8080`              |
+| `web.healthPath`                                        | Path of the web health endpoint used by the probes and `helm test`. `/nginx-health` is a static 200 independent of the API.                            | `/nginx-health`     |
+| `web.apiUpstream`                                       | `API_UPSTREAM`, the `host:port` nginx proxies `/api/v1`, `/socket.io`, `/api-docs` and `/healthz` to. Defaults to `<fullname>-api:<api.service.port>`. | `""`                |
+| `web.dnsResolver`                                       | `DNS_RESOLVER`, nginx's resolver. Auto-detected from the pod's /etc/resolv.conf when empty.                                                            | `""`                |
+| `web.service.type`                                      | Web Service type. The Service is named `<fullname>-web` and its port `http`.                                                                           | `ClusterIP`         |
+| `web.service.port`                                      | Web Service port. External HTTPRoutes/Ingresses target `<fullname>-web:<port>`.                                                                        | `80`                |
+| `web.service.annotations`                               | Annotations for the web Service                                                                                                                        | `{}`                |
+| `web.updateStrategy.type`                               | Deployment strategy for the web tier                                                                                                                   | `RollingUpdate`     |
+| `web.terminationGracePeriodSeconds`                     | Seconds between SIGTERM and SIGKILL of the web pod                                                                                                     | `10`                |
+| `web.preStopSleepSeconds`                               | Seconds the preStop hook sleeps so in-flight requests drain while endpoints propagate. `0` disables the hook.                                          | `5`                 |
+| `web.startupProbe.enabled`                              | Enable the startupProbe                                                                                                                                | `false`             |
+| `web.startupProbe.initialDelaySeconds`                  | Initial delay seconds for the startupProbe                                                                                                             | `0`                 |
+| `web.startupProbe.periodSeconds`                        | Period seconds for the startupProbe                                                                                                                    | `5`                 |
+| `web.startupProbe.timeoutSeconds`                       | Timeout seconds for the startupProbe                                                                                                                   | `3`                 |
+| `web.startupProbe.failureThreshold`                     | Failure threshold for the startupProbe                                                                                                                 | `12`                |
+| `web.startupProbe.successThreshold`                     | Success threshold for the startupProbe                                                                                                                 | `1`                 |
+| `web.readinessProbe.enabled`                            | Enable the readinessProbe                                                                                                                              | `true`              |
+| `web.readinessProbe.initialDelaySeconds`                | Initial delay seconds for the readinessProbe                                                                                                           | `2`                 |
+| `web.readinessProbe.periodSeconds`                      | Period seconds for the readinessProbe                                                                                                                  | `10`                |
+| `web.readinessProbe.timeoutSeconds`                     | Timeout seconds for the readinessProbe                                                                                                                 | `3`                 |
+| `web.readinessProbe.failureThreshold`                   | Failure threshold for the readinessProbe                                                                                                               | `3`                 |
+| `web.readinessProbe.successThreshold`                   | Success threshold for the readinessProbe                                                                                                               | `1`                 |
+| `web.livenessProbe.enabled`                             | Enable the livenessProbe                                                                                                                               | `true`              |
+| `web.livenessProbe.initialDelaySeconds`                 | Initial delay seconds for the livenessProbe                                                                                                            | `5`                 |
+| `web.livenessProbe.periodSeconds`                       | Period seconds for the livenessProbe                                                                                                                   | `15`                |
+| `web.livenessProbe.timeoutSeconds`                      | Timeout seconds for the livenessProbe                                                                                                                  | `3`                 |
+| `web.livenessProbe.failureThreshold`                    | Failure threshold for the livenessProbe                                                                                                                | `3`                 |
+| `web.livenessProbe.successThreshold`                    | Success threshold for the livenessProbe                                                                                                                | `1`                 |
+| `web.resources.requests.cpu`                            | Requested CPU for the web container                                                                                                                    | `25m`               |
+| `web.resources.requests.memory`                         | Requested memory for the web container                                                                                                                 | `32Mi`              |
+| `web.resources.limits.cpu`                              | CPU limit for the web container                                                                                                                        | `200m`              |
+| `web.resources.limits.memory`                           | Memory limit for the web container                                                                                                                     | `128Mi`             |
+| `web.podSecurityContext.runAsNonRoot`                   | Require the web pod to run as a non-root user                                                                                                          | `true`              |
+| `web.podSecurityContext.runAsUser`                      | User ID of nginx (the image's `nginx` user)                                                                                                            | `101`               |
+| `web.podSecurityContext.runAsGroup`                     | Group ID of nginx                                                                                                                                      | `101`               |
+| `web.podSecurityContext.fsGroup`                        | Group that owns the mounted emptyDirs                                                                                                                  | `101`               |
+| `web.podSecurityContext.seccompProfile.type`            | Seccomp profile type                                                                                                                                   | `RuntimeDefault`    |
+| `web.containerSecurityContext.allowPrivilegeEscalation` | Whether nginx can gain more privileges than its parent                                                                                                 | `false`             |
+| `web.containerSecurityContext.readOnlyRootFilesystem`   | Mount the container's root filesystem read-only (the chart mounts emptyDirs at /etc/nginx/conf.d and /tmp)                                             | `true`              |
+| `web.containerSecurityContext.capabilities.drop`        | Linux capabilities to drop                                                                                                                             | `["ALL"]`           |
+| `web.containerSecurityContext.seccompProfile.type`      | Seccomp profile type                                                                                                                                   | `RuntimeDefault`    |
+| `web.podLabels`                                         | Extra labels for the web pod                                                                                                                           | `{}`                |
+| `web.podAnnotations`                                    | Extra annotations for the web pod                                                                                                                      | `{}`                |
+| `web.nodeSelector`                                      | Node labels for web pod assignment                                                                                                                     | `{}`                |
+| `web.tolerations`                                       | Tolerations for web pod assignment                                                                                                                     | `[]`                |
+| `web.affinity`                                          | Affinity for web pod assignment                                                                                                                        | `{}`                |
+| `web.topologySpreadConstraints`                         | Topology spread constraints for the web pod                                                                                                            | `[]`                |
+| `web.priorityClassName`                                 | Priority class of the web pod                                                                                                                          | `""`                |
+| `web.initContainers`                                    | Extra init containers for the web pod (templated)                                                                                                      | `[]`                |
+| `web.extraEnvVars`                                      | Extra environment variables for the web container (templated)                                                                                          | `[]`                |
+| `web.extraVolumes`                                      | Extra volumes for the web pod (templated)                                                                                                              | `[]`                |
+| `web.extraVolumeMounts`                                 | Extra volume mounts for the web container (templated)                                                                                                  | `[]`                |
 
 ### Routing parameters
 
@@ -372,8 +380,9 @@ PVC is created and the old one can be removed (rendered PDFs are regenerated on 
 
 ### Root to uid 1000
 
-The 1.x images ran as root; 2.x runs the API as its `node` user (uid/gid 1000) and RethinkDB as
-uid/gid 1000 too. `fsGroup: 1000` fixes group ownership of a reused API volume on mount (block
+The 1.x images ran as root; 2.x runs the API as its `node` user (uid/gid 1000), RethinkDB as
+uid/gid 1000 too, and the web nginx as uid/gid 101 on port 8080 (it needs web image 2.0.1 or
+later; the Service port stays 80). `fsGroup: 1000` fixes group ownership of a reused API volume on mount (block
 storage such as ceph-rbd); a filesystem-backed (NFS/CephFS) volume written by root needs a one-off
 `chown -R 1000:1000` first. The RethinkDB volume is always new (dump/restore above), so no chown
 is needed there.

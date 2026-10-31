@@ -856,8 +856,8 @@
                 },
                 "containerPort": {
                     "type": "number",
-                    "description": "Port nginx listens on inside the container",
-                    "default": 80
+                    "description": "Port nginx listens on inside the container. The web image runs unprivileged from web 2.0.1 and listens on 8080.",
+                    "default": 8080
                 },
                 "healthPath": {
                     "type": "string",
@@ -1056,13 +1056,78 @@
                 },
                 "podSecurityContext": {
                     "type": "object",
-                    "description": "Pod-level securityContext for the web pod (see the comment above)",
-                    "default": {}
+                    "properties": {
+                        "runAsNonRoot": {
+                            "type": "boolean",
+                            "description": "Require the web pod to run as a non-root user",
+                            "default": true
+                        },
+                        "runAsUser": {
+                            "type": "number",
+                            "description": "User ID of nginx (the image's `nginx` user)",
+                            "default": 101
+                        },
+                        "runAsGroup": {
+                            "type": "number",
+                            "description": "Group ID of nginx",
+                            "default": 101
+                        },
+                        "fsGroup": {
+                            "type": "number",
+                            "description": "Group that owns the mounted emptyDirs",
+                            "default": 101
+                        },
+                        "seccompProfile": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Seccomp profile type",
+                                    "default": "RuntimeDefault"
+                                }
+                            }
+                        }
+                    }
                 },
                 "containerSecurityContext": {
                     "type": "object",
-                    "description": "Container-level securityContext for the web container (see the comment above)",
-                    "default": {}
+                    "properties": {
+                        "allowPrivilegeEscalation": {
+                            "type": "boolean",
+                            "description": "Whether nginx can gain more privileges than its parent",
+                            "default": false
+                        },
+                        "readOnlyRootFilesystem": {
+                            "type": "boolean",
+                            "description": "Mount the container's root filesystem read-only (the chart mounts emptyDirs at /etc/nginx/conf.d and /tmp)",
+                            "default": true
+                        },
+                        "capabilities": {
+                            "type": "object",
+                            "properties": {
+                                "drop": {
+                                    "type": "array",
+                                    "description": "Linux capabilities to drop",
+                                    "default": [
+                                        "ALL"
+                                    ],
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        },
+                        "seccompProfile": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "description": "Seccomp profile type",
+                                    "default": "RuntimeDefault"
+                                }
+                            }
+                        }
+                    }
                 },
                 "podLabels": {
                     "type": "object",
