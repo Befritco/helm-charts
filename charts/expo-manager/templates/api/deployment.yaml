@@ -91,6 +91,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "expo-manager.secretName" . }}
                   key: email-sender-password
+            {{- if eq .Values.email.auth "oauth2-m365" }}
+            - name: EMAIL_SENDER_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "expo-manager.secretName" . }}
+                  key: email-sender-oauth-client-secret
+            {{- end }}
             - name: RETHINKDB_PASSWORD
               valueFrom:
                 secretKeyRef:

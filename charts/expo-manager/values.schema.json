@@ -145,12 +145,17 @@
         },
         "existingSecret": {
             "type": "string",
-            "description": "Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password`, plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database.",
+            "description": "Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password` (plus `email-sender-oauth-client-secret` when `email.auth` is `oauth2-m365`), plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database.",
             "default": ""
         },
         "email": {
             "type": "object",
             "properties": {
+                "auth": {
+                    "type": "string",
+                    "description": "`EMAIL_SENDER_AUTH`: how the API logs in to the SMTP server: `password` (username + password, e.g. Mailu) or `oauth2-m365` (Microsoft 365 OAuth2 client credentials over SMTP XOAUTH2; server and port then default to smtp.office365.com:587). Port 587 always requires STARTTLS, 465 uses implicit TLS.",
+                    "default": "password"
+                },
                 "server": {
                     "type": "string",
                     "description": "`EMAIL_SENDER_SERVER`: SMTP server hostname",
@@ -190,6 +195,26 @@
                     "type": "string",
                     "description": "`EMAIL_SUBJECT`: subject of the checkout email",
                     "default": "Checkout stand"
+                },
+                "oauth": {
+                    "type": "object",
+                    "properties": {
+                        "tenantId": {
+                            "type": "string",
+                            "description": "`EMAIL_SENDER_OAUTH_TENANT_ID`: Entra tenant id (GUID) or domain, for `oauth2-m365`",
+                            "default": ""
+                        },
+                        "clientId": {
+                            "type": "string",
+                            "description": "`EMAIL_SENDER_OAUTH_CLIENT_ID`: application (client) id of the Entra app registration, for `oauth2-m365`",
+                            "default": ""
+                        },
+                        "clientSecret": {
+                            "type": "string",
+                            "description": "`EMAIL_SENDER_OAUTH_CLIENT_SECRET`: client secret of that app, stored in the chart Secret (`email-sender-oauth-client-secret`). Ignored when `existingSecret` is set.",
+                            "default": ""
+                        }
+                    }
                 }
             }
         },

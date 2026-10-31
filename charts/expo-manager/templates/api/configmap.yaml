@@ -29,6 +29,11 @@ data:
   LOGIN_RATE_LIMIT_MAX: {{ .Values.loginRateLimit.max | int64 | quote }}
   LOGIN_RATE_LIMIT_WINDOW_MS: {{ .Values.loginRateLimit.windowMs | int64 | quote }}
   LOGIN_RATE_LIMIT_IP_MAX: {{ .Values.loginRateLimit.ipMax | int64 | quote }}
+  EMAIL_SENDER_AUTH: {{ .Values.email.auth | quote }}
+  {{- if eq .Values.email.auth "oauth2-m365" }}
+  EMAIL_SENDER_OAUTH_TENANT_ID: {{ required "email.oauth.tenantId is required when email.auth is oauth2-m365" .Values.email.oauth.tenantId | quote }}
+  EMAIL_SENDER_OAUTH_CLIENT_ID: {{ required "email.oauth.clientId is required when email.auth is oauth2-m365" .Values.email.oauth.clientId | quote }}
+  {{- end }}
   EMAIL_SENDER_SERVER: {{ .Values.email.server | quote }}
   EMAIL_SENDER_PORT: {{ .Values.email.port | int64 | quote }}
   EMAIL_SENDER_ADDRESS: {{ .Values.email.senderAddress | quote }}
