@@ -33,7 +33,7 @@ spec:
       {{- with include "expo-manager.imagePullSecrets" . }}
       {{- . | nindent 6 }}
       {{- end }}
-      serviceAccountName: {{ include "expo-manager.serviceAccountName" . }}
+      serviceAccountName: {{ include "expo-manager.webServiceAccountName" . }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       terminationGracePeriodSeconds: {{ .Values.web.terminationGracePeriodSeconds }}
       {{- with .Values.web.podSecurityContext }}

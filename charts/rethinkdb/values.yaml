@@ -188,8 +188,18 @@ pdb:
   enabled: true
   maxUnavailable: 1
 
+## @param serviceAccount.create Create a dedicated ServiceAccount for the RethinkDB pods. Its identity lets mesh authorization (e.g. Istio `principals`) admit only the members themselves to the unauthenticated cluster port 29015.
+## @param serviceAccount.name Name of the ServiceAccount. The fullname when empty and `create` is true; `default` otherwise.
+## @param serviceAccount.annotations Annotations for the ServiceAccount
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
 ## NetworkPolicy is off by default so the chart works unmodified outside a mesh. On an Istio
-## ambient mesh, port 15008 is the HBONE tunnel port used for all mTLS'd traffic to/from the pod.
+## ambient mesh, port 15008 is the HBONE tunnel port used for all mTLS'd traffic to/from the pod,
+## so the port rules below do not apply to mesh clients: restrict those with L4
+## AuthorizationPolicies on the source principal (see the README, "Service mesh").
 ## Cluster traffic (29015) between the chart's own pods is always allowed.
 ## @param networkPolicy.enabled Create a NetworkPolicy restricting traffic to the pod
 ## @param networkPolicy.allowedPodSelectors List of `matchLabels` maps allowed to reach the driver port (28015)

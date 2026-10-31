@@ -35,6 +35,7 @@ spec:
       {{- end }}
     spec:
       {{- include "rethinkdb.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "rethinkdb.serviceAccountName" . }}
       automountServiceAccountToken: false
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
