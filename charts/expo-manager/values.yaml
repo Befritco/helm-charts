@@ -74,9 +74,10 @@ loginRateLimit:
 jwtSecret: ""
 ## @param initialUserPassword `INITIAL_USER_PASSWORD`, the first admin user's password. Ignored when `existingSecret` is set. When empty and `existingSecret` is unset, a random 16-character value is generated once and kept stable across upgrades.
 initialUserPassword: ""
-## @param existingSecret Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password`, plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database.
+## @param existingSecret Name of an existing Secret carrying `jwt-secret`, `initial-user-password` and `email-sender-password` (plus `email-sender-oauth-client-secret` when `email.auth` is `oauth2-m365`), plus `rethinkdb-password` when the RethinkDB subchart is disabled. When set, the chart renders no Secret of its own. Point `rethinkdb.existingSecret` at the same Secret if it also carries `rethinkdb-password` for the bundled database.
 existingSecret: ""
 
+## @param email.auth `EMAIL_SENDER_AUTH`: how the API logs in to the SMTP server: `password` (username + password, e.g. Mailu) or `oauth2-m365` (Microsoft 365 OAuth2 client credentials over SMTP XOAUTH2; server and port then default to smtp.office365.com:587). Port 587 always requires STARTTLS, 465 uses implicit TLS.
 ## @param email.server `EMAIL_SENDER_SERVER`: SMTP server hostname
 ## @param email.port `EMAIL_SENDER_PORT`: SMTP server port
 ## @param email.senderAddress `EMAIL_SENDER_ADDRESS`: address checkout emails are sent from
@@ -85,7 +86,11 @@ existingSecret: ""
 ## @param email.senderPassword `EMAIL_SENDER_PASSWORD`: SMTP password, stored in the chart Secret. Ignored when `existingSecret` is set.
 ## @param email.bcc `EMAIL_BCC`: address every checkout email is blind-copied to
 ## @param email.subject `EMAIL_SUBJECT`: subject of the checkout email
+## @param email.oauth.tenantId `EMAIL_SENDER_OAUTH_TENANT_ID`: Entra tenant id (GUID) or domain, for `oauth2-m365`
+## @param email.oauth.clientId `EMAIL_SENDER_OAUTH_CLIENT_ID`: application (client) id of the Entra app registration, for `oauth2-m365`
+## @param email.oauth.clientSecret `EMAIL_SENDER_OAUTH_CLIENT_SECRET`: client secret of that app, stored in the chart Secret (`email-sender-oauth-client-secret`). Ignored when `existingSecret` is set.
 email:
+  auth: "password"
   server: "smtp.example.com"
   port: 587
   senderAddress: "expo@example.com"
@@ -94,6 +99,10 @@ email:
   senderPassword: ""
   bcc: ""
   subject: "Checkout stand"
+  oauth:
+    tenantId: ""
+    clientId: ""
+    clientSecret: ""
 
 ## @param checkout.text.fr `CHECKOUT_TEXT_FR`: French text on the checkout email and PDF
 ## @param checkout.text.nl `CHECKOUT_TEXT_NL`: Dutch text on the checkout email and PDF
