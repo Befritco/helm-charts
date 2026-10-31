@@ -1,3 +1,4 @@
 {
-  "charts/expo-manager": "1.0.8"
+  "charts/expo-manager": "2.0.0",
+  "charts/rethinkdb": "1.0.0"
 }
