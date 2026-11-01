@@ -125,7 +125,8 @@ per-table setting the application raises afterwards -- see [Replication](#replic
 ## Clustering and HA
 
 `replicaCount > 1` turns the StatefulSet into a RethinkDB cluster. Everything below was verified
-on RethinkDB 2.4.4 in kind (3 members, pod deletion, scale down/up, upgrade from chart 1.0.0).
+on RethinkDB 2.4.4 in kind (3 members, pod deletion, scale down/up, upgrade from chart 1.0.0;
+chart 1.0.1's addressing as described below).
 
 ### How the cluster forms
 
@@ -138,16 +139,23 @@ from its own hostname; no sidecar, operator, custom image or ServiceAccount toke
   `WARNING: ignoring --server-name because this server already has a name.` and keeps the
   persisted identity (a node upgraded from chart 1.0.0 keeps its generated `<host>_<random>`
   name; rename it through `r.db('rethinkdb').table('server_config')` if you care).
-- `--canonical-address` is the pod's stable DNS name
-  `<pod>.<fullname>-headless.<namespace>.svc.<clusterDomain>` (`clusterDomain` defaults to
-  `cluster.local`). The headless Service has `publishNotReadyAddresses: true`, so the record
-  exists as soon as the pod does.
-- `--join <fullname>-<i>.<fullname>-headless...:29015` is passed for the other ordinals. Two
-  RethinkDB behaviours shape how that list is built:
-  - a `--join` hostname that does **not resolve** at startup is fatal
-    (`error: getaddrinfo() failed for hostname '...': No address associated with hostname`,
-    the process exits);
-  - a `--join` target that resolves but is **down** is retried indefinitely, but the server
+- `--canonical-address` is the pod IP (downward API `status.podIP`; IPv6 is bracketed), and every
+  `--join` is the IP the wrapper resolved from the peer's stable name
+  `<fullname>-<i>.<fullname>-headless.<namespace>.svc.<clusterDomain>` (`clusterDomain` defaults
+  to `cluster.local`). **RethinkDB itself is never given a DNS name.** It resolves canonical and
+  `--join` addresses again on every (re)connection, and while a member's pod is being replaced
+  its record does not exist: up to chart 1.0.0, which passed the names, the other members then
+  either aborted on `Guarantee failed: [peer.ips().size() > 0]` (an empty answer, as given by
+  Istio ambient's DNS proxy) or dropped the returning peer as `unresolvable hostname` and could
+  stay partitioned (seen in production during a rolling update). A stale IP is harmless: the
+  dial is refused and retried, and a replaced member announces its new IP when it joins. The
+  headless Service keeps `publishNotReadyAddresses: true`, so a member's name resolves as soon
+  as its pod exists.
+- `--join <ip>:29015` is passed for the other ordinals. Two RethinkDB behaviours shape how that
+  list is built:
+  - a `--join` target that cannot be resolved at startup is fatal (the process exits), which
+    the wrapper avoids by resolving the names itself;
+  - a `--join` target that is **down** is retried indefinitely, but the server
     does not open its driver port (28015) until at least one join has succeeded (observed for
     more than four minutes with a peer refusing connections: `Listening for intracluster
     connections` is logged, `Listening for client driver connections` is not).
@@ -168,12 +176,18 @@ from its own hostname; no sidecar, operator, custom image or ServiceAccount toke
   on an existing data directory it logs `Ignoring --initial-password option because the admin
   password is already configured.` All members read the same Secret, so this never conflicts.
 
-Expect one transient line per (re)joining peer on the other members:
-`error: Connected to peer with unresolvable hostname: <pod>..., closing connection.` It is
-CoreDNS negative caching: while the peer was absent its name resolved to NXDOMAIN (RethinkDB
-polls the canonical address of a disconnected peer, and pod 0 looks the higher ordinals up at
-start), the answer is cached for up to 30 s, the first inbound connection is dropped and the retry
-a few seconds later succeeds (`Connected to server "..."` follows).
+Since chart 1.0.1 RethinkDB does no DNS lookup for its peers, so neither of those errors has a
+path left. Verified in kind on a 3-member cluster with a 3-replica table, after an in-place upgrade
+from 1.0.0, by deleting each member in turn, two members at once and all three: the mesh stayed
+full, no container restarted, every row stayed readable and neither error was logged.
+
+**Upgrading from 1.0.0** rolls the StatefulSet once. While members on 1.0.0 still run, they dial
+the replaced members by name and can hit the bug above one last time. Afterwards, check that every
+member is connected to all the others: `r.db('rethinkdb').table('server_status')`, each server's
+`network.connected_to` must list every other member as `true`. If two members are not connected
+(queries hang, the API hangs at startup), restart **all** members together, for example
+`kubectl exec <pod> -- kill -TERM 1` on each in quick succession: the containers restart in place,
+every name keeps resolving, and the members form a full mesh again.
 
 ### Access
 

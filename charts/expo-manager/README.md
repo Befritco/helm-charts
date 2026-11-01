@@ -304,6 +304,12 @@ count.
 | `rethinkdb.resources.limits.cpu`      | CPU limit for RethinkDB                                                                                                                                                                                              | `1`     |
 | `rethinkdb.resources.limits.memory`   | Memory limit for RethinkDB                                                                                                                                                                                           | `2Gi`   |
 
+With `rethinkdb.replicaCount` > 1 the database is a RethinkDB cluster: see the rethinkdb chart's
+README, "Clustering and HA". From rethinkdb chart 1.0.1 (bundled from expo-manager 2.0.2) the
+members address each other by pod IP, so replacing a member's pod (rolling update, node drain,
+preemption) no longer crashes or partitions the others. Upgrading from an earlier release rolls the
+RethinkDB StatefulSet once; check the cluster afterwards as that README describes.
+
 ### Test parameters
 
 | Name                     | Description                                             | Value             |

@@ -83,16 +83,25 @@ spec:
               # already carries a name -- RethinkDB keeps the persisted identity.
               HOSTNAME="${HOSTNAME:-$(cat /proc/sys/kernel/hostname)}"
               server_name="$(printf '%s' "$HOSTNAME" | tr -c 'A-Za-z0-9_' '_')"
-              set -- --server-name "$server_name" --canonical-address "$HOSTNAME.$PEER_DOMAIN"
+              # No DNS name is ever handed to RethinkDB: it resolves canonical and --join addresses
+              # again whenever it (re)connects, and a name whose pod is being replaced has no
+              # record. RethinkDB 2.4 then aborts on `Guarantee failed: [peer.ips().size() > 0]`
+              # (empty answer, as from Istio ambient's DNS proxy) or drops the peer as
+              # `unresolvable hostname` and can stay partitioned. So the canonical address is the
+              # pod IP, and each --join is the IP this wrapper resolved from the stable name. A
+              # stale IP is harmless: the dial is refused and retried, and a replaced member
+              # announces its new IP when it joins.
+              ip_addr() { case "$1" in *:*) printf '[%s]' "$1" ;; *) printf '%s' "$1" ;; esac; }
+              set -- --server-name "$server_name" --canonical-address "$(ip_addr "$POD_IP")"
               {{- if gt $replicas 1 }}
-              # Cluster members: --join every other ordinal by its stable headless-Service name.
-              # RethinkDB exits when a --join hostname does not resolve at startup, and only opens
-              # its driver port once one join has succeeded, so the peer list is built to match
-              # what OrderedReady guarantees: lower ordinals exist (and are Ready) before this pod
-              # starts, so they are waited for (bounded) and joined; higher ordinals are joined
-              # only if they already resolve (rolling restart, full-cluster restart) and are
-              # otherwise left to dial this pod themselves when they come up. On a cold start
-              # pod 0 therefore starts alone and every later pod joins its predecessors.
+              # Cluster members: --join every other ordinal, found by its stable headless-Service
+              # name. RethinkDB only opens its driver port once one join has succeeded, so the peer
+              # list is built to match what OrderedReady guarantees: lower ordinals exist (and are
+              # Ready) before this pod starts, so they are waited for (bounded) and joined; higher
+              # ordinals are joined only if they already resolve (rolling restart, full-cluster
+              # restart) and are otherwise left to dial this pod themselves when they come up. On
+              # a cold start pod 0 therefore starts alone and every later pod joins its
+              # predecessors.
               ordinal="${HOSTNAME##*-}"
               deadline=$(( $(date +%s) + {{ int .Values.cluster.peerResolveTimeoutSeconds }} ))
               for i in $(seq 0 {{ sub $replicas 1 }}); do
@@ -107,7 +116,8 @@ spec:
                     sleep 2
                   done
                 fi
-                getent hosts "$peer" >/dev/null 2>&1 && set -- "$@" --join "$peer:29015"
+                peer_ip="$(getent hosts "$peer" 2>/dev/null | awk 'NR==1 {print $1}')" || peer_ip=""
+                [ -n "$peer_ip" ] && set -- "$@" --join "$(ip_addr "$peer_ip"):29015"
               done
               {{- end }}
               exec rethinkdb --bind all --directory /data/db --cache-size {{ .Values.cacheSizeMB }} \
@@ -123,6 +133,10 @@ spec:
                   key: rethinkdb-password
             - name: PEER_DOMAIN
               value: {{ $peerDomain | quote }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           ports:
             - name: tcp-driver
               containerPort: 28015
