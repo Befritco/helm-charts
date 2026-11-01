@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/Befritco/helm-charts/compare/expo-manager-2.0.1...expo-manager-2.0.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* **rethinkdb:** address cluster members by pod IP so a replaced member cannot crash or partition its peers ([#37](https://github.com/Befritco/helm-charts/issues/37)) ([7f5a564](https://github.com/Befritco/helm-charts/commit/7f5a564d9ca2903b2781fbb896c22d731dec6e77))
+
 ## [2.0.1](https://github.com/Befritco/helm-charts/compare/expo-manager-2.0.0...expo-manager-2.0.1) (2026-11-01)
 
 
