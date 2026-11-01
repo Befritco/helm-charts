@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/Befritco/helm-charts/compare/expo-manager-2.0.0...expo-manager-2.0.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **expo-manager:** default images to api 4.0.0 and web 3.0.0 ([#35](https://github.com/Befritco/helm-charts/issues/35)) ([7d43dbb](https://github.com/Befritco/helm-charts/commit/7d43dbb649e500cae8dd1e8df49e263599e7572d))
+
 ## [2.0.0](https://github.com/Befritco/helm-charts/compare/expo-manager-1.0.8...expo-manager-2.0.0) (2026-10-31)
 
 
