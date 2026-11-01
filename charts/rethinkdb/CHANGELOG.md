@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/Befritco/helm-charts/compare/rethinkdb-1.0.0...rethinkdb-1.0.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **rethinkdb:** address cluster members by pod IP so a replaced member cannot crash or partition its peers ([#37](https://github.com/Befritco/helm-charts/issues/37)) ([7f5a564](https://github.com/Befritco/helm-charts/commit/7f5a564d9ca2903b2781fbb896c22d731dec6e77))
+
 ## 1.0.0 (2026-10-31)
 
 
