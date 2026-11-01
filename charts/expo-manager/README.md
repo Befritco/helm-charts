@@ -304,12 +304,6 @@ count.
 | `rethinkdb.resources.limits.cpu`      | CPU limit for RethinkDB                                                                                                                                                                                              | `1`     |
 | `rethinkdb.resources.limits.memory`   | Memory limit for RethinkDB                                                                                                                                                                                           | `2Gi`   |
 
-With `rethinkdb.replicaCount` > 1 the database is a RethinkDB cluster: see the rethinkdb chart's
-README, "Clustering and HA". From rethinkdb chart 1.0.1 (bundled from expo-manager 2.0.2) the
-members address each other by pod IP, so replacing a member's pod (rolling update, node drain,
-preemption) no longer crashes or partitions the others. Upgrading from an earlier release rolls the
-RethinkDB StatefulSet once; check the cluster afterwards as that README describes.
-
 ### Test parameters
 
 | Name                     | Description                                             | Value             |
@@ -318,6 +312,14 @@ RethinkDB StatefulSet once; check the cluster afterwards as that README describe
 | `tests.image.repository` | Image repository for the `helm test` pod (needs `curl`) | `curlimages/curl` |
 | `tests.image.tag`        | Image tag for the `helm test` pod                       | `8.16.0`          |
 | `tests.image.pullPolicy` | Image pull policy for the `helm test` pod               | `IfNotPresent`    |
+
+## RethinkDB cluster
+
+With `rethinkdb.replicaCount` > 1 the database is a RethinkDB cluster: see the rethinkdb chart's
+README, "Clustering and HA". From rethinkdb chart 1.0.1 (bundled from expo-manager 2.0.2) the
+members address each other by pod IP, so replacing a member's pod (rolling update, node drain,
+preemption) no longer crashes or partitions the others. Upgrading from an earlier release rolls the
+RethinkDB StatefulSet once; check the cluster afterwards as that README describes.
 
 ## Upgrading from 1.x
 
