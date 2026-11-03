@@ -147,8 +147,9 @@ from its own hostname; no sidecar, operator, custom image or ServiceAccount toke
   its record does not exist: up to chart 1.0.0, which passed the names, the other members then
   either aborted on `Guarantee failed: [peer.ips().size() > 0]` (an empty answer, as given by
   Istio ambient's DNS proxy) or dropped the returning peer as `unresolvable hostname` and could
-  stay partitioned (seen in production during a rolling update). A stale IP is harmless: the
-  dial is refused and retried, and a replaced member announces its new IP when it joins. The
+  stay partitioned (seen in production during a rolling update). Outside a mesh a stale IP is
+  harmless: the dial is refused and retried, and a replaced member announces its new IP when it
+  joins. Under Istio ambient it is not, see "Replacing a member under Istio ambient" below. The
   headless Service keeps `publishNotReadyAddresses: true`, so a member's name resolves as soon
   as its pod exists.
 - `--join <ip>:29015` is passed for the other ordinals. Two RethinkDB behaviours shape how that
@@ -176,10 +177,36 @@ from its own hostname; no sidecar, operator, custom image or ServiceAccount toke
   on an existing data directory it logs `Ignoring --initial-password option because the admin
   password is already configured.` All members read the same Secret, so this never conflicts.
 
-Since chart 1.0.1 RethinkDB does no DNS lookup for its peers, so neither of those errors has a
-path left. Verified in kind on a 3-member cluster with a 3-replica table, after an in-place upgrade
-from 1.0.0, by deleting each member in turn, two members at once and all three: the mesh stayed
-full, no container restarted, every row stayed readable and neither error was logged.
+Since chart 1.0.1 RethinkDB does no DNS lookup for its peers, so the DNS path to both errors is
+gone and a replaced member can no longer leave the cluster partitioned. Verified in kind (no mesh)
+on a 3-member cluster with a 3-replica table, after an in-place upgrade from 1.0.0, by deleting
+each member in turn, two members at once and all three: the mesh stayed full, no container
+restarted, every row stayed readable and neither error was logged.
+
+### Replacing a member under Istio ambient
+
+On an Istio ambient mesh the surviving members can still abort **once** when a member pod is
+replaced. Seen in production (chart 1.0.1, 2026-11-02, one member pod deleted): both survivors
+logged `Received invalid clustering header from <old pod IP>:29015` and then aborted on
+`Guarantee failed: [peer.ips().size() > 0]`. Their containers restarted in place within seconds,
+the three members formed a full mesh again, nothing was partitioned and the application did not
+need a restart, but for those seconds no member was serving.
+
+The cause is the mesh, not DNS. A survivor redials the replaced member's old IP. In ambient mode
+that connection goes out through the local ztunnel, which accepts the TCP connection itself, then
+fails to open the HBONE tunnel to the dead IP and closes the connection without a byte exchanged.
+RethinkDB 2.4.4 aborts on a connection that is accepted and then closed during the clustering
+handshake. Without a mesh the dead IP refuses the dial, which RethinkDB handles. kind therefore
+cannot reproduce it.
+
+Two ways to live with it:
+
+- Keep the pods in the mesh (the default) and accept a brief, self-healing restart of the
+  surviving members whenever a member pod is replaced (rolling update, drain, preemption). Avoid
+  changes that roll the StatefulSet while the application is in critical use.
+- Take the RethinkDB pods out of ambient (pod label `istio.io/dataplane-mode: none`) and restrict
+  the ports with `networkPolicy.*` instead. This removes the crash, but traffic to and between the
+  members loses mTLS, and the identity-based `AuthorizationPolicy` below no longer applies.
 
 **Upgrading from 1.0.0** rolls the StatefulSet once. While members on 1.0.0 still run, they dial
 the replaced members by name and can hit the bug above one last time. Afterwards, check that every
