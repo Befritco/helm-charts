@@ -349,7 +349,7 @@ web:
   image:
     registry: ghcr.io
     repository: befritco/expo/web
-    tag: "3.0.0"
+    tag: "3.1.0"
     digest: ""
     pullPolicy: IfNotPresent
     pullSecrets: []
